@@ -4,6 +4,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 import '../models/chat_message.dart';
 import '../models/food_entry.dart';
@@ -13,6 +14,8 @@ import '../services/caliana_service.dart';
 import '../services/saved_meals_service.dart';
 import '../services/usage_service.dart';
 import '../services/transcribe_service.dart';
+
+const _kFirstWelcomeKey = 'caliana_first_welcome_played_v1';
 import '../models/meal_idea.dart';
 import '../models/saved_meal.dart';
 import '../widgets/calorie_ring.dart';
@@ -54,6 +57,21 @@ class _TodayScreenState extends State<TodayScreen> {
     UserProfileService.instance.addListener(_onDataChange);
     UsageService.instance.addListener(_onDataChange);
     _seedWelcomeIfEmpty();
+    // Play the recorded welcome audio exactly once — first time the user
+    // ever lands on Home after onboarding. Subsequent app opens stay quiet.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybePlayFirstWelcome());
+  }
+
+  Future<void> _maybePlayFirstWelcome() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_kFirstWelcomeKey) ?? false) return;
+      await prefs.setBool(_kFirstWelcomeKey, true);
+      await _voicePlayer.stop();
+      await _voicePlayer.play(AssetSource('audio/welcome.mp3'));
+    } catch (_) {
+      // No audio file dropped in yet — silent no-op.
+    }
   }
 
   @override

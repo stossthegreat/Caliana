@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -214,9 +215,48 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 // ============================================================================
 // SCREEN 1 — Welcome
 // ============================================================================
-class _Welcome extends StatelessWidget {
+class _Welcome extends StatefulWidget {
   final VoidCallback onNext;
   const _Welcome({required this.onNext});
+
+  @override
+  State<_Welcome> createState() => _WelcomeState();
+}
+
+class _WelcomeState extends State<_Welcome> {
+  final AudioPlayer _intro = AudioPlayer();
+  bool _played = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Auto-play the ElevenLabs intro once after first frame.
+    // Fails silently if the asset isn't there yet.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _play());
+  }
+
+  @override
+  void dispose() {
+    _intro.dispose();
+    super.dispose();
+  }
+
+  Future<void> _play() async {
+    if (_played) return;
+    _played = true;
+    try {
+      await _intro.stop();
+      await _intro.play(AssetSource('audio/onboarding_intro.mp3'));
+    } catch (_) {
+      // Silent — the screen still works without audio.
+    }
+  }
+
+  Future<void> _replay() async {
+    HapticFeedback.lightImpact();
+    _played = false;
+    await _play();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -243,19 +283,65 @@ class _Welcome extends StatelessWidget {
               height: 1,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text(
-            'Your AI nutrition coach.',
+            'Calories, but make it British.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 17,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
               color: AppColors.textSecondary,
               letterSpacing: -0.2,
             ),
           ),
+          const SizedBox(height: 6),
+          Text(
+            'Half sharp mate, half narrator quietly\njudging your third coffee.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.45,
+              color: AppColors.textHint,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 18),
+          GestureDetector(
+            onTap: _replay,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.accent.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(50),
+                border: Border.all(
+                  color: AppColors.accent.withValues(alpha: 0.30),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.volume_up_rounded,
+                    size: 16,
+                    color: AppColors.accent,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Hear Caliana',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.accent,
+                      letterSpacing: -0.1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           const Spacer(flex: 3),
-          _PrimaryButton(label: 'Continue', onTap: onNext),
+          _PrimaryButton(label: 'Continue', onTap: widget.onNext),
         ],
       ),
     );
