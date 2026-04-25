@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
 import '../models/user_profile.dart';
 import '../services/user_profile_service.dart';
@@ -7,6 +8,11 @@ import '../services/app_settings_service.dart';
 import '../services/usage_service.dart';
 import '../services/day_log_service.dart';
 import '../widgets/aurora_background.dart';
+
+const _kPrivacyUrl = 'https://stossthegreat.github.io/Caliana/privacy.html';
+const _kTermsUrl = 'https://stossthegreat.github.io/Caliana/terms.html';
+const _kDeleteUrl = 'https://stossthegreat.github.io/Caliana/delete-account.html';
+const _kSupportEmail = 'info@m2mb.co.uk';
 
 /// Caliana's settings — slim, single-page, navy/coral. Tone slider lives here.
 /// All goal data is editable; updating instantly recomputes daily/weekly targets.
@@ -90,19 +96,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         _targetBlock(),
                       ),
                       const SizedBox(height: 22),
-                      _sectionLabel('Account'),
+                      _sectionLabel('Legal & support'),
                       const SizedBox(height: 8),
-                      _linkRow(
-                        Icons.policy_rounded,
-                        'Terms of Service',
-                        AppColors.textSecondary,
-                        () {},
-                      ),
                       _linkRow(
                         Icons.privacy_tip_rounded,
                         'Privacy Policy',
                         AppColors.textSecondary,
-                        () {},
+                        () => _openUrl(_kPrivacyUrl),
+                      ),
+                      _linkRow(
+                        Icons.policy_rounded,
+                        'Terms of Service',
+                        AppColors.textSecondary,
+                        () => _openUrl(_kTermsUrl),
+                      ),
+                      _linkRow(
+                        Icons.person_remove_rounded,
+                        'Delete account',
+                        AppColors.textSecondary,
+                        () => _openUrl(_kDeleteUrl),
+                        sub: 'How to remove your data',
+                      ),
+                      _linkRow(
+                        Icons.mail_outline_rounded,
+                        'Contact support',
+                        AppColors.textSecondary,
+                        _emailSupport,
+                        sub: _kSupportEmail,
                       ),
                       _linkRow(
                         Icons.info_outline_rounded,
@@ -222,27 +242,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _section(String label, IconData icon, Widget child) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-      decoration: GlassDecoration.card(opacity: 0.05),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+      decoration: GlassDecoration.card(opacity: 0.07),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: AppColors.accent, size: 18),
-              const SizedBox(width: 8),
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Icon(icon, color: AppColors.accent, size: 16),
+              ),
+              const SizedBox(width: 10),
               Text(
                 label,
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 15.5,
                   fontWeight: FontWeight.w800,
                   color: AppColors.textPrimary,
-                  letterSpacing: -0.2,
+                  letterSpacing: -0.3,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           child,
         ],
       ),
@@ -676,14 +704,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _sectionLabel(String text) {
     return Padding(
-      padding: const EdgeInsets.only(left: 8),
+      padding: const EdgeInsets.only(left: 4),
       child: Text(
         text.toUpperCase(),
         style: TextStyle(
-          fontSize: 11,
+          fontSize: 12,
           color: AppColors.textHint,
           fontWeight: FontWeight.w800,
-          letterSpacing: 1.2,
+          letterSpacing: 1.6,
         ),
       ),
     );
@@ -698,33 +726,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
     String? trailing,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Material(
         color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.all(14),
+          borderRadius: BorderRadius.circular(14),
+          child: Ink(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.04),
-              borderRadius: BorderRadius.circular(12),
+              color: Colors.white.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.08),
+                color: Colors.white.withValues(alpha: 0.10),
               ),
             ),
             child: Row(
               children: [
                 Container(
-                  width: 32,
-                  height: 32,
+                  width: 38,
+                  height: 38,
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(9),
+                    color: color.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(11),
                   ),
-                  child: Icon(icon, color: color, size: 16),
+                  child: Icon(icon, color: color, size: 18),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -732,19 +761,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Text(
                         title,
                         style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
                           color: AppColors.textPrimary,
+                          letterSpacing: -0.2,
                         ),
                       ),
-                      if (sub != null)
+                      if (sub != null) ...[
+                        const SizedBox(height: 2),
                         Text(
                           sub,
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: AppColors.textHint,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
+                      ],
                     ],
                   ),
                 ),
@@ -756,13 +789,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(
                         fontSize: 11,
                         color: AppColors.textHint,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
                 Icon(
                   Icons.chevron_right_rounded,
                   color: AppColors.textHint,
-                  size: 18,
+                  size: 20,
                 ),
               ],
             ),
@@ -827,6 +861,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _openUrl(String url) async {
+    HapticFeedback.lightImpact();
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open $url')),
+      );
+    }
+  }
+
+  Future<void> _emailSupport() async {
+    HapticFeedback.lightImpact();
+    final uri = Uri(
+      scheme: 'mailto',
+      path: _kSupportEmail,
+      queryParameters: {'subject': 'Caliana support'},
+    );
+    if (!await launchUrl(uri)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No email client found')),
+      );
+    }
   }
 
   void _confirmClearData() {

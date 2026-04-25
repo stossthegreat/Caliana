@@ -4,6 +4,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 import '../models/chat_message.dart';
 import '../models/food_entry.dart';
@@ -13,6 +14,8 @@ import '../services/caliana_service.dart';
 import '../services/saved_meals_service.dart';
 import '../services/usage_service.dart';
 import '../services/transcribe_service.dart';
+
+const _kFirstWelcomeKey = 'caliana_first_welcome_played_v1';
 import '../models/meal_idea.dart';
 import '../models/saved_meal.dart';
 import '../widgets/calorie_ring.dart';
@@ -54,6 +57,21 @@ class _TodayScreenState extends State<TodayScreen> {
     UserProfileService.instance.addListener(_onDataChange);
     UsageService.instance.addListener(_onDataChange);
     _seedWelcomeIfEmpty();
+    // Play the recorded welcome audio exactly once — first time the user
+    // ever lands on Home after onboarding. Subsequent app opens stay quiet.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybePlayFirstWelcome());
+  }
+
+  Future<void> _maybePlayFirstWelcome() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_kFirstWelcomeKey) ?? false) return;
+      await prefs.setBool(_kFirstWelcomeKey, true);
+      await _voicePlayer.stop();
+      await _voicePlayer.play(AssetSource('audio/welcome.mp3'));
+    } catch (_) {
+      // No audio file dropped in yet — silent no-op.
+    }
   }
 
   @override
@@ -512,10 +530,51 @@ class _TodayScreenState extends State<TodayScreen> {
 
   Future<void> _onFixMyDay() async {
     HapticFeedback.mediumImpact();
-    await _talkTo(
-      "Fix my day. Recalculate dinner to land me on target.",
-      hideUserMessage: true,
+    final profile = UserProfileService.instance.profile;
+    final today = DayLogService.instance.today;
+    final goal = profile.dailyCalorieGoal;
+    final consumed = today.totalCalories;
+    final remaining = goal - consumed;
+
+    final String intro;
+    final String ask;
+    if (remaining < 0) {
+      final over = -remaining;
+      intro = "Over by $over. Sober dinner — pick one.";
+      ask = 'lightest possible dinner under 300 kcal that still satisfies';
+    } else if (remaining < 400) {
+      intro = "Tight: $remaining left. Easy options.";
+      ask = 'small dinner around $remaining kcal that fits my macros';
+    } else {
+      intro = "$remaining left. Proper dinner — pick one.";
+      ask = 'satisfying dinner around $remaining kcal that fits my macros';
+    }
+
+    await _suggestRecipes(ask: ask, intro: intro);
+  }
+
+  Future<void> _onSuggestDinner() async {
+    HapticFeedback.mediumImpact();
+    final profile = UserProfileService.instance.profile;
+    final today = DayLogService.instance.today;
+    final remaining =
+        (profile.dailyCalorieGoal - today.totalCalories).clamp(200, 4000);
+    await _suggestRecipes(
+      ask: 'dinner ideas around $remaining kcal that fit my goals',
+      intro: "$remaining left for dinner. Pick one.",
     );
+  }
+
+  Future<void> _onFixTheWeek() async {
+    HapticFeedback.mediumImpact();
+    final profile = UserProfileService.instance.profile;
+    await _suggestRecipes(
+      ask:
+          'three light, high-protein meals to rebuild from being over budget today, around 400 kcal each',
+      intro: "Three to rebuild from. Pick what works.",
+    );
+    // ignore: unused_local_variable
+    final _ = profile;
   }
 
   Future<void> _talkTo(String text, {bool hideUserMessage = false}) async {
@@ -576,6 +635,15 @@ class _TodayScreenState extends State<TodayScreen> {
         text: text,
       ),
     );
+
+    // Natural-language meal asks route to the Serper recipe pipeline,
+    // not chat. Otherwise the user types "what should I eat" and gets a
+    // dry persona quip with no actual meals.
+    if (_looksLikeMealAsk(text)) {
+      await _suggestFromAsk(text);
+      return;
+    }
+
     setState(() => _isThinking = true);
 
     if (_looksLikeFoodLog(text)) {
@@ -611,6 +679,47 @@ class _TodayScreenState extends State<TodayScreen> {
     unawaited(_speak(reply.text));
     if (mounted) setState(() => _isThinking = false);
     _scrollToBottom();
+  }
+
+  // Detect "what should I eat" / "give me dinner" / "suggest a meal" / etc.
+  // so we hit the Serper recipe pipeline instead of the chat endpoint.
+  bool _looksLikeMealAsk(String text) {
+    final t = text.toLowerCase();
+    if (t.length > 200) return false;
+    const askPatterns = [
+      'suggest', 'recommend', 'give me', 'what should i eat',
+      'what can i eat', 'what should i have', 'what to eat',
+      'dinner ideas', 'lunch ideas', 'breakfast ideas', 'meal ideas',
+      'recipe', 'recipes',
+    ];
+    return askPatterns.any(t.contains);
+  }
+
+  // Pick the right kcal target from the user's day, then fire _suggestRecipes.
+  Future<void> _suggestFromAsk(String userText) async {
+    final profile = UserProfileService.instance.profile;
+    final today = DayLogService.instance.today;
+    final remaining =
+        (profile.dailyCalorieGoal - today.totalCalories).clamp(150, 4000);
+
+    final lower = userText.toLowerCase();
+    final mealHint = lower.contains('breakfast')
+        ? 'breakfast'
+        : lower.contains('lunch')
+            ? 'lunch'
+            : lower.contains('snack')
+                ? 'snack'
+                : 'dinner';
+
+    final intro = mealHint == 'snack'
+        ? "$remaining left. Snack ideas — pick one."
+        : "$remaining left. ${mealHint[0].toUpperCase()}${mealHint.substring(1)} options — pick one.";
+
+    await _suggestRecipes(
+      ask:
+          '$mealHint ideas around $remaining kcal that fit my macros and dietary preferences',
+      intro: intro,
+    );
   }
 
   // True only when the message clearly LOGS food. We require a logging
@@ -886,9 +995,10 @@ class _TodayScreenState extends State<TodayScreen> {
   // Chat actions / long-press / nav
   // ---------------------------------------------------------------------------
   Future<void> _onActionChip(String label, ChatMessage source) async {
-    // Route well-known chip labels to local actions so the welcome bubble
-    // (and any future Caliana suggestions) feel native, not chatty.
-    switch (label.toLowerCase()) {
+    // Route well-known chip labels to real actions so taps deliver actual
+    // meal suggestions / fixes — never just a follow-up chat reply.
+    final l = label.toLowerCase().trim();
+    switch (l) {
       case 'snap food':
       case 'snap a meal':
         _onCameraTap();
@@ -898,7 +1008,38 @@ class _TodayScreenState extends State<TodayScreen> {
         _onFridgeTap();
         return;
       case 'fix my day':
+      case 'fix the day':
         _onFixMyDay();
+        return;
+      case 'suggest dinner':
+      case 'dinner ideas':
+        _onSuggestDinner();
+        return;
+      case 'fix the week':
+      case 'rebuild week':
+      case 'rebuild the week':
+        _onFixTheWeek();
+        return;
+      case 'high protein':
+      case 'high-protein':
+        _suggestRecipes(
+          ask: 'high-protein meals around 400-500 kcal',
+          intro: "Two high-protein options. Pick one.",
+        );
+        return;
+      case 'eat clean':
+      case 'clean meal':
+        _suggestRecipes(
+          ask: 'light clean meals for the rest of today',
+          intro: "Light and clean. Pick one.",
+        );
+        return;
+      case 'quick lunch':
+      case '10-minute lunch':
+        _suggestRecipes(
+          ask: '10-minute lunch ideas that fit my macros',
+          intro: "Ten-minute jobs. Fast.",
+        );
         return;
     }
     await _talkTo(label);
