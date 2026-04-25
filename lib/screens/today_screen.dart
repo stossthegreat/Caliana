@@ -24,6 +24,7 @@ import '../widgets/caliana_character.dart';
 import '../widgets/input_dock.dart';
 import '../widgets/quick_actions_bar.dart';
 import '../widgets/recipes_sheet.dart';
+import '../widgets/food_edit_sheet.dart';
 import 'paywall_screen.dart';
 import 'settings_screen.dart';
 
@@ -57,9 +58,13 @@ class _TodayScreenState extends State<TodayScreen> {
     UserProfileService.instance.addListener(_onDataChange);
     UsageService.instance.addListener(_onDataChange);
     _seedWelcomeIfEmpty();
-    // Play the recorded welcome audio exactly once — first time the user
-    // ever lands on Home after onboarding. Subsequent app opens stay quiet.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybePlayFirstWelcome());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // First app launch after onboarding plays the recorded welcome audio.
+      await _maybePlayFirstWelcome();
+      // Then check if we should drop a proactive meal-slot interjection
+      // (Duo-style soft ping when she hasn't heard from you).
+      await _maybeInterject();
+    });
   }
 
   Future<void> _maybePlayFirstWelcome() async {
@@ -72,6 +77,120 @@ class _TodayScreenState extends State<TodayScreen> {
     } catch (_) {
       // No audio file dropped in yet — silent no-op.
     }
+  }
+
+  // Determine the current meal slot from local hour, or null if outside.
+  String? _mealSlot(int hour) {
+    if (hour >= 6 && hour < 11) return 'breakfast';
+    if (hour >= 11 && hour < 15) return 'lunch';
+    if (hour >= 17 && hour < 22) return 'dinner';
+    return null;
+  }
+
+  /// Proactive ping: if it's currently a meal time and the user hasn't
+  /// logged anything in this slot today AND we haven't already pinged
+  /// for this slot, Caliana drops a soft interjection.
+  ///
+  /// One per slot per day, tone-aware. This is the soul-friend touch —
+  /// she notices when you've gone quiet.
+  Future<void> _maybeInterject() async {
+    final now = DateTime.now();
+    final slot = _mealSlot(now.hour);
+    if (slot == null) return;
+
+    final today = DayLogService.instance.today;
+    final loggedInSlot = today.entries.any((e) {
+      final h = e.timestamp.hour;
+      return _mealSlot(h) == slot;
+    });
+    if (loggedInSlot) return;
+
+    final dateKey = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final flagKey = 'caliana_interjected_${dateKey}_$slot';
+    SharedPreferences prefs;
+    try {
+      prefs = await SharedPreferences.getInstance();
+    } catch (_) {
+      return;
+    }
+    if (prefs.getBool(flagKey) ?? false) return;
+    await prefs.setBool(flagKey, true);
+    if (!mounted) return;
+
+    final profile = UserProfileService.instance.profile;
+    final firstName = profile.name.trim().split(RegExp(r'\s+')).first;
+    final addr = firstName.isEmpty ? '' : ', $firstName';
+
+    final text = _interjectionLine(slot, profile.tone, addr);
+    final chips = slot == 'dinner'
+        ? const <String>['Suggest dinner', 'Snap food']
+        : const <String>['Log meal', 'Snap food'];
+
+    await DayLogService.instance.addMessage(
+      now,
+      ChatMessage(
+        id: 'm_${now.millisecondsSinceEpoch}_int',
+        timestamp: now,
+        role: 'caliana',
+        text: text,
+        actionChips: chips,
+        isInterjection: true,
+      ),
+    );
+    unawaited(_speak(text));
+    _scrollToBottom();
+  }
+
+  String _interjectionLine(String slot, String tone, String addr) {
+    final pools = {
+      'breakfast': {
+        'polite': [
+          "Morning$addr. Breakfast in the diary?",
+          "Morning$addr. Don't skip the first one.",
+        ],
+        'cheeky': [
+          "Morning$addr. Tell me you've eaten.",
+          "Morning$addr. Coffee doesn't count.",
+          "Morning$addr. Eggs? Toast? Anything?",
+        ],
+        'savage': [
+          "Morning$addr. The fasting era continues, then?",
+          "Morning$addr. Eight AM, no breakfast. Bold.",
+        ],
+      },
+      'lunch': {
+        'polite': [
+          "Lunchtime$addr. Anything in mind?",
+          "Lunchtime$addr. Quick log when you can.",
+        ],
+        'cheeky': [
+          "Oi$addr. Lunch?",
+          "Lunchtime$addr. What's gone in?",
+          "Lunchtime$addr. Don't make me guess.",
+        ],
+        'savage': [
+          "Lunchtime$addr. Or are we doing this dance again.",
+          "Lunchtime$addr. The silence is loud.",
+        ],
+      },
+      'dinner': {
+        'polite': [
+          "Evening$addr. Dinner sorted?",
+          "Evening$addr. Want a few options?",
+        ],
+        'cheeky': [
+          "Evening$addr. Dinner plans, or shall I pick?",
+          "Evening$addr. Fancy a suggestion?",
+        ],
+        'savage': [
+          "Evening$addr. Eight PM. The dinner question grows urgent.",
+          "Evening$addr. Cereal again, or shall we be adults?",
+        ],
+      },
+    };
+    final t = (tone == 'polite' || tone == 'savage') ? tone : 'cheeky';
+    final list = pools[slot]![t]!;
+    return list[DateTime.now().millisecondsSinceEpoch % list.length];
   }
 
   @override
@@ -232,39 +351,80 @@ class _TodayScreenState extends State<TodayScreen> {
   // White counter row — calorie ring + 3 mini macros (light theme)
   // ---------------------------------------------------------------------------
   Widget _buildCounterRow(int consumed, int goal, dayLog, profile) {
+    final streak = DayLogService.instance.loggingStreak;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CalorieRing(
-            consumed: consumed,
-            goal: goal,
-            label: '',
-            size: 108,
-            onLongPress: _openSettings,
+          if (streak >= 2) _streakChip(streak),
+          if (streak >= 2) const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              CalorieRing(
+                consumed: consumed,
+                goal: goal,
+                label: '',
+                size: 108,
+                onLongPress: _openSettings,
+              ),
+              MiniMacroRing(
+                letter: 'P',
+                current: dayLog.totalProtein,
+                target: profile.dailyProteinGrams,
+                color: AppColors.macroProtein,
+                size: 50,
+              ),
+              MiniMacroRing(
+                letter: 'C',
+                current: dayLog.totalCarbs,
+                target: profile.dailyCarbsGrams,
+                color: AppColors.macroCarbs,
+                size: 50,
+              ),
+              MiniMacroRing(
+                letter: 'F',
+                current: dayLog.totalFat,
+                target: profile.dailyFatGrams,
+                color: AppColors.macroFat,
+                size: 50,
+              ),
+            ],
           ),
-          MiniMacroRing(
-            letter: 'P',
-            current: dayLog.totalProtein,
-            target: profile.dailyProteinGrams,
-            color: AppColors.macroProtein,
-            size: 50,
-          ),
-          MiniMacroRing(
-            letter: 'C',
-            current: dayLog.totalCarbs,
-            target: profile.dailyCarbsGrams,
-            color: AppColors.macroCarbs,
-            size: 50,
-          ),
-          MiniMacroRing(
-            letter: 'F',
-            current: dayLog.totalFat,
-            target: profile.dailyFatGrams,
-            color: AppColors.macroFat,
-            size: 50,
+        ],
+      ),
+    );
+  }
+
+  // Visible memory: a small flame chip showing how many days in a row
+  // the user has logged. Makes Caliana's "I remember you" pattern
+  // recognition tangible — the user sees the number they're protecting.
+  Widget _streakChip(int streak) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.accent.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.accent.withValues(alpha: 0.30),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('🔥', style: TextStyle(fontSize: 12)),
+          const SizedBox(width: 4),
+          Text(
+            '$streak day${streak == 1 ? '' : 's'} in a row',
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: AppColors.accent,
+              letterSpacing: -0.1,
+            ),
           ),
         ],
       ),
@@ -431,6 +591,7 @@ class _TodayScreenState extends State<TodayScreen> {
                       message: msg,
                       onChipTap: (label) => _onActionChip(label, msg),
                       onLongPress: () => _onMessageLongPress(msg),
+                      onTap: () => _onMessageTap(msg),
                     );
                   },
                 ),
@@ -1049,6 +1210,38 @@ class _TodayScreenState extends State<TodayScreen> {
     if (msg.foodEntry != null) {
       _confirmDeleteEntry(msg.foodEntry!);
     }
+  }
+
+  void _onMessageTap(ChatMessage msg) {
+    if (msg.foodEntry != null) {
+      _openFoodEditSheet(msg.foodEntry!);
+    }
+  }
+
+  void _openFoodEditSheet(FoodEntry entry) {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+        ),
+        child: FoodEditSheet(
+          entry: entry,
+          onSave: (updated) async {
+            await DayLogService.instance.updateEntry(entry.timestamp, updated);
+            if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+          },
+          onDelete: () async {
+            await DayLogService.instance
+                .removeEntry(entry.timestamp, entry.id);
+            if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+          },
+        ),
+      ),
+    );
   }
 
   void _confirmDeleteEntry(FoodEntry entry) {

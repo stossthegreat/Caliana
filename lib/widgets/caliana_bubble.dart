@@ -14,6 +14,7 @@ class CalianaBubble extends StatelessWidget {
   final ChatMessage message;
   final ValueChanged<String>? onChipTap;
   final VoidCallback? onLongPress;
+  final VoidCallback? onTap;
   final VoidCallback? onPlayVoice;
 
   const CalianaBubble({
@@ -21,6 +22,7 @@ class CalianaBubble extends StatelessWidget {
     required this.message,
     this.onChipTap,
     this.onLongPress,
+    this.onTap,
     this.onPlayVoice,
   });
 
@@ -225,91 +227,143 @@ class CalianaBubble extends StatelessWidget {
             Expanded(
               child: Align(
                 alignment: Alignment.centerRight,
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(16),
-                      topRight: Radius.circular(4),
-                      bottomLeft: Radius.circular(16),
-                      bottomRight: Radius.circular(16),
-                    ),
-                    border:
-                        Border.all(color: AppColors.surfaceBorder, width: 1),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
+                child: GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    onTap?.call();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(4),
+                        bottomLeft: Radius.circular(16),
+                        bottomRight: Radius.circular(16),
                       ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _methodIcon(entry.inputMethod),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              entry.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary,
+                      border: Border.all(
+                          color: AppColors.surfaceBorder, width: 1),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _methodIcon(entry.inputMethod),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                entry.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '${entry.calories}',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
-                              color: AppColors.primary,
-                              letterSpacing: -0.5,
-                              fontFeatures: [FontFeature.tabularFigures()],
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${entry.calories}',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.primary,
+                                letterSpacing: -0.5,
+                                fontFeatures: [FontFeature.tabularFigures()],
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 3),
-                          Text(
-                            'kcal',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: AppColors.textHint,
+                            const SizedBox(width: 3),
+                            Text(
+                              'kcal',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: AppColors.textHint,
+                              ),
                             ),
-                          ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 5,
+                          children: [
+                            _macroPill('P', entry.proteinGrams,
+                                AppColors.macroProtein),
+                            _macroPill('C', entry.carbsGrams,
+                                AppColors.macroCarbs),
+                            _macroPill(
+                                'F', entry.fatGrams, AppColors.macroFat),
+                          ],
+                        ),
+                        if (_confidenceLabel(entry.confidence) != null) ...[
+                          const SizedBox(height: 6),
+                          _confidenceChip(entry.confidence),
                         ],
-                      ),
-                      const SizedBox(height: 4),
-                      Wrap(
-                        spacing: 5,
-                        children: [
-                          _macroPill('P', entry.proteinGrams,
-                              AppColors.macroProtein),
-                          _macroPill('C', entry.carbsGrams,
-                              AppColors.macroCarbs),
-                          _macroPill('F', entry.fatGrams, AppColors.macroFat),
-                        ],
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  String? _confidenceLabel(String c) {
+    switch (c) {
+      case 'low':
+        return 'Rough est. — tap to fix';
+      case 'high':
+        return null; // No badge when we're confident; less visual noise.
+      default:
+        return null;
+    }
+  }
+
+  Widget _confidenceChip(String confidence) {
+    final label = _confidenceLabel(confidence);
+    if (label == null) return const SizedBox.shrink();
+    final color = AppColors.warning;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.info_outline_rounded, size: 10, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: color,
+              letterSpacing: 0.1,
+            ),
+          ),
+        ],
       ),
     );
   }
