@@ -9,7 +9,7 @@ class AppSettingsService extends ChangeNotifier {
   static final AppSettingsService _instance = AppSettingsService._();
   static AppSettingsService get instance => _instance;
 
-  static const _backendUrlKey = 'gobly_backend_url_v1';
+  static const _backendUrlKey = 'caliana_backend_url_v1';
 
   /// Production Railway URL — always falls back to this if nothing else is set.
   /// Can be overridden at runtime (Settings) or at build time via
