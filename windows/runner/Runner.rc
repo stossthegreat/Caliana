@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "Gobly" "\0"
+            VALUE "CompanyName", "Caliana" "\0"
+            VALUE "FileDescription", "Caliana" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "gobly" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "gobly.exe" "\0"
-            VALUE "ProductName", "Gobly" "\0"
+            VALUE "InternalName", "caliana" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 Caliana. All rights reserved." "\0"
+            VALUE "OriginalFilename", "caliana.exe" "\0"
+            VALUE "ProductName", "Caliana" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

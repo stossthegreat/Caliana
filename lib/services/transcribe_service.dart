@@ -33,7 +33,7 @@ class TranscribeService {
     final ext = isIos ? 'wav' : 'm4a';
     final encoder = isIos ? AudioEncoder.wav : AudioEncoder.aacLc;
     final path =
-        '${tempDir.path}/gobly_voice_${DateTime.now().millisecondsSinceEpoch}.$ext';
+        '${tempDir.path}/caliana_voice_${DateTime.now().millisecondsSinceEpoch}.$ext';
 
     await _recorder.start(
       RecordConfig(

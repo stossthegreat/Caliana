@@ -1,25 +1,30 @@
-# Gobly
+# Caliana
 
-The fastest way to find the right recipe and plan your week.
+Caliana is a Flutter app: your sassy British AI calorie coach. Snap, speak, sorted.
 
-Gobly is a Flutter app that pairs a lethal AI agent with a clean three-tab UX (Home / Plan / Groceries) to take you from "what should I cook tonight?" to a fully planned week with auto-populated grocery list in seconds.
+Talk to her, log meals by voice or photo, and let her work out the calories without you doing the maths.
 
-## Features
+## What's in here
 
-- **Voice + text recipe search** — speak or type, the agent fetches the highest-rated real recipes from trusted food publishers (NYT Cooking, Serious Eats, Bon Appétit, etc.)
-- **AI week planner** — describe the week you want, get a full meal plan with real recipes attached
-- **Auto-grocery from meal plan** — every ingredient flows automatically into the grocery list, categorized
-- **Cookbooks** — group recipes into named collections
-- **OpenAI Whisper voice transcription** for accurate hands-free input
-- **Profile-aware** — allergies, dislikes, diet, household size all sent to the agent on every query
+- **`lib/`** — Flutter app (Dart). UI, state, and services that talk to the backend.
+- **`backend/`** — Node + Fastify API (deploys to Railway via `Dockerfile`).
+- **`docs/`** — Privacy, Terms, and account-deletion pages served via GitHub Pages.
+- **`android/`, `ios/`, `macos/`, `linux/`, `windows/`** — Flutter platform shells.
 
-## Stack
+## Identifiers
 
-- **Frontend**: Flutter
-- **Backend**: Node.js + Fastify + TypeScript (separate repo)
-- **LLM**: OpenAI GPT-4o mini + Whisper
-- **Search**: Brave Search / Serper.dev
-- **Recipe extraction**: schema.org/Recipe JSON-LD parsing
+- **iOS bundle:** `com.caliana.app`
+- **Android package:** `com.caliana.caliana`
+
+## Backend
+
+See [`backend/README.md`](backend/README.md) for endpoint docs, env vars, and deploy notes.
+
+## Legal
+
+- Privacy: https://stossthegreat.github.io/Caliana/privacy.html
+- Terms: https://stossthegreat.github.io/Caliana/terms.html
+- Delete account: https://stossthegreat.github.io/Caliana/delete-account.html
 
 ## Building
 

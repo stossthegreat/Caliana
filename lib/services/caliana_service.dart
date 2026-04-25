@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -57,11 +58,18 @@ class CalianaService {
           )
           .timeout(const Duration(seconds: 25));
       if (res.statusCode != 200) {
+        debugPrint('Caliana chat ${res.statusCode}: ${res.body}');
         return _localFallbackReply(userText, profile, today);
       }
       final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final text = (data['text'] as String?)?.trim() ?? '';
+      if (text.isEmpty) {
+        // Backend OK but model returned empty. Fall back so the bubble
+        // never renders silent.
+        return _localFallbackReply(userText, profile, today);
+      }
       return CalianaReply(
-        text: (data['text'] as String?)?.trim() ?? '',
+        text: text,
         actionChips: List<String>.from(data['actionChips'] ?? const []),
       );
     } catch (e) {
@@ -279,8 +287,14 @@ Entries today: ${today.entries.length}.
 
   // ---------------------------------------------------------------------------
   // Local fallbacks — used until backend routes ship, and as graceful failure.
-  // Deterministic so the UI is never empty and demos always work.
+  // Tone-aware, randomised, viral-by-default so the UI never feels dead even
+  // when the network is down.
   // ---------------------------------------------------------------------------
+  static final Random _rng = Random();
+
+  String _pick(List<String> options) =>
+      options[_rng.nextInt(options.length)];
+
   CalianaReply _localFallbackReply(
     String userText,
     UserProfile profile,
@@ -288,47 +302,206 @@ Entries today: ${today.entries.length}.
   ) {
     final consumed = today.totalCalories;
     final goal = profile.dailyCalorieGoal;
-    final pct = goal == 0 ? 0 : consumed * 100 / goal;
+    final pct = goal == 0 ? 0.0 : consumed * 100.0 / goal;
     final lower = userText.toLowerCase();
+    final tone = profile.tone; // 'polite' | 'cheeky' | 'savage'
 
-    // Specific quick-action triggers — keep replies tight.
+    // Specific quick-action triggers — short, decisive, tone-aware.
     if (lower.contains('fix my day')) {
-      return const CalianaReply(text: "Sorted. Dinner adjusted.");
+      return CalianaReply(
+        text: _pick(_fixMyDay[tone] ?? _fixMyDay['cheeky']!),
+        actionChips: const ['Suggest dinner'],
+      );
     }
     if (lower.contains('high-protein') || lower.contains('high protein')) {
-      return const CalianaReply(
-        text: "Try chicken bowl or eggs on toast.",
+      return CalianaReply(
+        text: _pick(_highProtein[tone] ?? _highProtein['cheeky']!),
       );
     }
     if (lower.contains('clean')) {
-      return const CalianaReply(text: "Salmon + greens. Done.");
+      return CalianaReply(text: _pick(_clean[tone] ?? _clean['cheeky']!));
     }
     if (lower.contains('junk') || lower.contains('balance')) {
-      return const CalianaReply(text: "Alright. I'll balance it.");
+      return CalianaReply(
+        text: _pick(_balanceJunk[tone] ?? _balanceJunk['cheeky']!),
+      );
     }
     if (lower.contains('quick lunch') || lower.contains('10-minute')) {
-      return const CalianaReply(text: "Tuna wrap. Five minutes.");
+      return CalianaReply(
+        text: _pick(_quickLunch[tone] ?? _quickLunch['cheeky']!),
+      );
     }
 
+    // Calorie-progress reactions — randomised so it never feels canned.
+    final List<String> bucket;
+    final List<String> chips;
     if (pct < 50) {
-      return const CalianaReply(text: "Clean slate. Don't waste it.");
+      bucket = _under50[tone] ?? _under50['cheeky']!;
+      chips = const [];
+    } else if (pct < 90) {
+      bucket = _half[tone] ?? _half['cheeky']!;
+      chips = const [];
+    } else if (pct < 110) {
+      bucket = _tight[tone] ?? _tight['cheeky']!;
+      chips = const ['Suggest dinner'];
+    } else {
+      bucket = _over[tone] ?? _over['cheeky']!;
+      chips = const ['Fix the week'];
     }
-    if (pct < 90) {
-      return CalianaReply(
-        text: "Halfway. Dinner stays light.",
-      );
-    }
-    if (pct < 110) {
-      return const CalianaReply(
-        text: "Tight. I'll suggest dinner.",
-        actionChips: ['Suggest dinner'],
-      );
-    }
-    return const CalianaReply(
-      text: "Over. We rebuild tomorrow.",
-      actionChips: ['Fix the week'],
-    );
+    return CalianaReply(text: _pick(bucket), actionChips: chips);
   }
+
+  // Quick-action one-liner pools, keyed by tone.
+  static const Map<String, List<String>> _fixMyDay = {
+    'polite': [
+      "Sorted, love. Dinner adjusted.",
+      "Right then — light tea, easy walk.",
+      "On it. We tidy this up.",
+    ],
+    'cheeky': [
+      "Sorted. Dinner stays civil.",
+      "Right, easy fix. Lighter tea.",
+      "Behave. Soup tonight, you menace.",
+      "Fair play. We trim 300 off dinner.",
+    ],
+    'savage': [
+      "Damage report received. Salad for tea.",
+      "We move. Dinner pays the bill.",
+      "Absolute mare. Fixing it now.",
+    ],
+  };
+
+  static const Map<String, List<String>> _highProtein = {
+    'polite': [
+      "Lovely. Chicken bowl, eggs on toast.",
+      "Try Greek yoghurt and berries. Tidy.",
+    ],
+    'cheeky': [
+      "Chicken bowl. Eggs on toast. Sorted.",
+      "Greek yog and berries. Behave.",
+      "Tuna wrap. Proper fuel.",
+    ],
+    'savage': [
+      "Chicken. Plain. Like your week deserves.",
+      "Eggs on toast. Decisive choice for once.",
+    ],
+  };
+
+  static const Map<String, List<String>> _clean = {
+    'polite': [
+      "Salmon and greens. Lovely choice.",
+      "Grilled fish, lemon, leaves. Tidy.",
+    ],
+    'cheeky': [
+      "Salmon plus greens. Done.",
+      "Grilled fish, big salad. Smashing.",
+    ],
+    'savage': [
+      "Salmon. Greens. Penance for the croissant.",
+      "Fish and leaves. Unrecognisable behaviour.",
+    ],
+  };
+
+  static const Map<String, List<String>> _balanceJunk = {
+    'polite': [
+      "All good — we balance it tomorrow.",
+      "Right then, light dinner sorts it.",
+    ],
+    'cheeky': [
+      "Alright. We balance it. Behave tomorrow.",
+      "Sorted. Light tea, no further crimes.",
+    ],
+    'savage': [
+      "Confessed. Penance: dinner of leaves.",
+      "Noted, your honour. We rebuild.",
+    ],
+  };
+
+  static const Map<String, List<String>> _quickLunch = {
+    'polite': [
+      "Tuna wrap. Five minutes. Lovely.",
+      "Eggs on toast. Easy and sound.",
+    ],
+    'cheeky': [
+      "Tuna wrap. Five minutes. Sorted.",
+      "Eggs on toast. Behave, that's lunch.",
+    ],
+    'savage': [
+      "Tuna wrap. Five minutes. Try not to ruin it.",
+      "Eggs on toast. Even you can manage.",
+    ],
+  };
+
+  // Calorie-progress pools.
+  static const Map<String, List<String>> _under50 = {
+    'polite': [
+      "Clean slate, love. Make it count.",
+      "Right then — fresh start. Tidy.",
+      "Plenty of room. Pick something proper.",
+    ],
+    'cheeky': [
+      "Clean slate. Don't waste it.",
+      "Plenty in the tank. Behave.",
+      "Right, blank canvas. Make it count.",
+      "Loads of room. Don't blow it on crisps.",
+    ],
+    'savage': [
+      "Clean slate. Try not to wreck it by ten.",
+      "Vast reserves. The day awaits your crimes.",
+      "Empty diary. Audacious, given last week.",
+    ],
+  };
+
+  static const Map<String, List<String>> _half = {
+    'polite': [
+      "Halfway, love. Light dinner sorts it.",
+      "On track. Easy tea tonight.",
+    ],
+    'cheeky': [
+      "Halfway. Dinner stays civil.",
+      "Right, on pace. Behave at tea.",
+      "Smashing. Don't get cocky.",
+      "Tidy. Light dinner, stay golden.",
+    ],
+    'savage': [
+      "Halfway. Restraint until tea, please.",
+      "Mid-day discipline. Unrecognisable.",
+      "On pace. Astonishing.",
+    ],
+  };
+
+  static const Map<String, List<String>> _tight = {
+    'polite': [
+      "Bit close — light dinner, yeah?",
+      "Snug. I'll pick a small tea.",
+    ],
+    'cheeky': [
+      "Tight. I'll line up a small dinner.",
+      "Cutting it fine. Soup tonight.",
+      "Borderline. Behave at tea.",
+    ],
+    'savage': [
+      "On the wire. Salad pays the toll.",
+      "Snug. The audacity to want dinner.",
+    ],
+  };
+
+  static const Map<String, List<String>> _over = {
+    'polite': [
+      "Over today — we rebuild tomorrow.",
+      "Past it, love. Easy day next.",
+    ],
+    'cheeky': [
+      "Over. We rebuild tomorrow.",
+      "Bit much. Sober dinner sorts it.",
+      "Crime scene. Fixing the week.",
+    ],
+    'savage': [
+      "Absolute mare. We rebuild — silently.",
+      "Disaster. Tomorrow does the apologising.",
+      "Scenes. We file it under \"learning\".",
+    ],
+  };
 
   FoodEntry _localFallbackEntry(
     String text, {

@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -39,6 +42,7 @@ class _TodayScreenState extends State<TodayScreen> {
   final FocusNode _textFocus = FocusNode();
   final ScrollController _scrollController = ScrollController();
   final ImagePicker _imagePicker = ImagePicker();
+  final AudioPlayer _voicePlayer = AudioPlayer();
   DateTime _selectedDate = DateTime.now();
   bool _isThinking = false;
   bool _isRecording = false;
@@ -60,7 +64,23 @@ class _TodayScreenState extends State<TodayScreen> {
     _textController.dispose();
     _textFocus.dispose();
     _scrollController.dispose();
+    _voicePlayer.dispose();
     super.dispose();
+  }
+
+  // Fire-and-forget: synthesize Caliana's reply via ElevenLabs and play it.
+  // Silently no-ops if the backend's voice route or API key isn't ready —
+  // the text bubble already shipped, so the user still sees the reply.
+  Future<void> _speak(String text) async {
+    if (text.trim().isEmpty) return;
+    try {
+      final path = await CalianaService.instance.synthesizeVoice(text);
+      if (path == null || !mounted) return;
+      await _voicePlayer.stop();
+      await _voicePlayer.play(DeviceFileSource(path));
+    } catch (e) {
+      debugPrint('Caliana speak error: $e');
+    }
   }
 
   void _onDataChange() {
@@ -523,6 +543,7 @@ class _TodayScreenState extends State<TodayScreen> {
         actionChips: reply.actionChips,
       ),
     );
+    unawaited(_speak(reply.text));
     if (mounted) setState(() => _isThinking = false);
     _scrollToBottom();
   }
@@ -587,6 +608,7 @@ class _TodayScreenState extends State<TodayScreen> {
         actionChips: reply.actionChips,
       ),
     );
+    unawaited(_speak(reply.text));
     if (mounted) setState(() => _isThinking = false);
     _scrollToBottom();
   }
@@ -665,6 +687,7 @@ class _TodayScreenState extends State<TodayScreen> {
           actionChips: reply.actionChips,
         ),
       );
+      unawaited(_speak(reply.text));
       if (mounted) setState(() => _isThinking = false);
       _scrollToBottom();
       return;
@@ -750,6 +773,7 @@ class _TodayScreenState extends State<TodayScreen> {
         actionChips: reply.actionChips,
       ),
     );
+    unawaited(_speak(reply.text));
     if (mounted) setState(() => _isThinking = false);
     _scrollToBottom();
   }
@@ -831,6 +855,7 @@ class _TodayScreenState extends State<TodayScreen> {
           actionChips: reply.actionChips,
         ),
       );
+      unawaited(_speak(reply.text));
     } catch (e) {
       debugPrint('voice error: $e');
     } finally {
