@@ -45,7 +45,9 @@ class CalianaService {
       'message': userText,
       'tone': profile.tone,
       'user': profile.toAgentContext(),
+      'firstName': _firstName(profile.name),
       'day': _dayContext(today, profile),
+      'recentPattern': _recentPatternContext(profile),
       'trigger': trigger,
     });
 
@@ -276,6 +278,76 @@ Today so far: $consumed kcal logged of $goal target ($pct%) — $left remaining.
 Macros today: ${today.totalProtein}g P / ${today.totalCarbs}g C / ${today.totalFat}g F.
 Entries today: ${today.entries.length}.
 ''';
+  }
+
+  /// Just the first word of the user's name (or empty). The agent uses
+  /// this for direct address; clinical full names break the vibe.
+  String _firstName(String fullName) {
+    final t = fullName.trim();
+    if (t.isEmpty) return '';
+    final parts = t.split(RegExp(r'\s+'));
+    return parts.first;
+  }
+
+  /// Rolling summary of the last few days so the agent can callback to
+  /// patterns ("third coffee day in a row", "fourth time over this week").
+  /// Empty string if there's nothing logged yet.
+  String _recentPatternContext(UserProfile profile) {
+    final svc = DayLogService.instance;
+    final goal = profile.dailyCalorieGoal;
+    final now = DateTime.now();
+    final summaries = <String>[];
+    int daysWithLogs = 0;
+    int daysOver = 0;
+    int totalCalories = 0;
+    final foodCounts = <String, int>{};
+
+    // Look back 3 days BEFORE today so the agent can reference yesterday
+    // and the day before without double-counting today.
+    for (int i = 1; i <= 3; i++) {
+      final d = now.subtract(Duration(days: i));
+      final log = svc.forDay(d);
+      if (log.entries.isEmpty) continue;
+      daysWithLogs++;
+      final cals = log.totalCalories;
+      totalCalories += cals;
+      if (goal > 0 && cals > goal) daysOver++;
+      summaries.add(
+        '${_dayLabel(i)}: $cals kcal, ${log.entries.length} entries',
+      );
+      for (final e in log.entries) {
+        final name = e.name.toLowerCase().trim();
+        if (name.isEmpty) continue;
+        foodCounts[name] = (foodCounts[name] ?? 0) + 1;
+      }
+    }
+
+    if (daysWithLogs == 0) return '(no entries in the last 3 days)';
+
+    final repeats = foodCounts.entries
+        .where((e) => e.value >= 2)
+        .map((e) => '${e.key} ×${e.value}')
+        .take(3)
+        .toList();
+
+    final avg = (totalCalories / daysWithLogs).round();
+    final lines = <String>[
+      '${summaries.join('; ')}.',
+      'Average: $avg kcal/day across $daysWithLogs day${daysWithLogs == 1 ? '' : 's'}.',
+    ];
+    if (goal > 0 && daysOver > 0) {
+      lines.add('Over goal: $daysOver of $daysWithLogs.');
+    }
+    if (repeats.isNotEmpty) {
+      lines.add('Repeated foods: ${repeats.join(', ')}.');
+    }
+    return lines.join(' ');
+  }
+
+  String _dayLabel(int daysAgo) {
+    if (daysAgo == 1) return 'Yesterday';
+    if (daysAgo == 2) return '2 days ago';
+    return '$daysAgo days ago';
   }
 
   FoodEntry _entryFromJson(

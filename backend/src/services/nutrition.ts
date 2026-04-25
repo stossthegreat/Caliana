@@ -41,11 +41,18 @@ CONFIDENCE RULES:
 - MEDIUM: known dish but portion ambiguous ("had a burger", "chicken sandwich")
 - LOW: complex/mixed dish or vague description ("had lunch", "snack")
 
-ESTIMATION RULES:
-- Use realistic AVERAGE portions for the dish (don't overestimate or under).
-- Sum components for mixed dishes (sandwich = bread + filling + mayo).
-- Be honest. If you're guessing, mark "low" and call out assumptions in notes.
+ESTIMATION RULES — accuracy matters, the user trusts these numbers:
+- Default to UK serving sizes when the description is in British English ("a pint", "a bag of crisps", "a Greggs sausage roll", "a flat white"). US sizes when American context.
+- For chain foods, use the chain's actual nutrition data when known
+  (e.g. McDonald's Big Mac = 550 kcal, Greggs sausage roll = 327 kcal,
+  Pret tuna baguette ≈ 520 kcal). Don't guess wildly.
+- If the user gives weight/volume ("200g rice", "500ml beer"), use that exactly.
+- For ambiguous items, choose the COMMON/MEDIUM portion (a "coffee" = ~120 kcal latte, not a black filter). Mention the assumption in notes.
+- Sum components for mixed dishes (a sandwich = bread + filling + mayo + cheese if implied).
+- Hidden fats are the #1 underestimation source — assume cooking oil for fried/sauteed items, dressing for salads, butter for toast, unless the user says otherwise. Add to fat estimate, mention in notes.
+- Drinks count: latte ≈ 120, cappuccino ≈ 80, oat milk latte ≈ 160, pint of lager ≈ 200, glass of wine ≈ 130.
 - Round calories to nearest 10, macros to nearest 1g.
+- Macros must roughly add up: protein*4 + carbs*4 + fat*9 should be within 15% of the calorie total. Re-check before returning.
 - Never return zero everywhere — if the user says they ate something, estimate.`;
 
 const PHOTO_SYSTEM = `You see a photo of food and parse it into a SINGLE log entry with realistic estimates.
