@@ -91,7 +91,20 @@ class CalianaService {
             body: jsonEncode({'text': text.trim()}),
           )
           .timeout(const Duration(seconds: 20));
-      if (res.statusCode != 200 || res.bodyBytes.isEmpty) return null;
+      if (res.statusCode != 200) {
+        // Surface the backend's actual error so missing keys / wrong voice
+        // ID / quota issues are visible in the device logs instead of
+        // silent failure.
+        debugPrint(
+          '🔇 Caliana voice ${res.statusCode}: '
+          '${res.body.length > 400 ? '${res.body.substring(0, 400)}…' : res.body}',
+        );
+        return null;
+      }
+      if (res.bodyBytes.isEmpty) {
+        debugPrint('🔇 Caliana voice: 200 OK but empty body');
+        return null;
+      }
 
       final dir = await getTemporaryDirectory();
       final file = File(
@@ -100,7 +113,7 @@ class CalianaService {
       await file.writeAsBytes(res.bodyBytes, flush: true);
       return file.path;
     } catch (e) {
-      debugPrint('Caliana voice error: $e');
+      debugPrint('🔇 Caliana voice error: $e');
       return null;
     }
   }
@@ -432,25 +445,23 @@ Entries today: ${today.entries.length}.
     ],
   };
 
-  // Calorie-progress pools — narrator voice. Stephen Fry energy.
+  // Calorie-progress pools. Specific, dry, British. No "Reader," / "Behold,".
   static const Map<String, List<String>> _under50 = {
     'polite': [
       "Clean slate, love. Make it count.",
       "Right then — fresh start. Tidy.",
       "Plenty of room. Pick something proper.",
-      "And so, the day begins. Easy does it.",
     ],
     'cheeky': [
       "Clean slate. Don't waste it.",
-      "Reader, the day is young.",
       "Plenty in the tank. Behave.",
-      "Behold: a blank canvas. Don't fumble it.",
       "Loads of room. Don't blow it on crisps.",
+      "Right, blank canvas. Make it count.",
     ],
     'savage': [
-      "And so, a fresh slate. Try not to wreck it by ten.",
-      "Vast reserves. The plot has not yet thickened.",
-      "Empty diary. Audacious, given last week.",
+      "Fresh slate. Try not to wreck it by ten.",
+      "Vast reserves. Audacious, given last week.",
+      "Empty diary. Don't get clever.",
     ],
   };
 
@@ -458,19 +469,17 @@ Entries today: ${today.entries.length}.
     'polite': [
       "Halfway there. Light dinner sorts it.",
       "On track, love. Easy tea tonight.",
-      "And lo, the midpoint. Steady on.",
     ],
     'cheeky': [
       "Halfway. Dinner stays civil.",
-      "Reader, the pace is acceptable.",
       "On the rails. Behave at tea.",
       "Smashing. Don't get cocky.",
       "Tidy. Light dinner, stay golden.",
     ],
     'savage': [
-      "Halfway. The restraint, briefly, is noted.",
+      "Halfway. Restraint until tea, please.",
       "Mid-day discipline. Unrecognisable.",
-      "On pace. The plot resists thickening.",
+      "On pace. Astonishing.",
     ],
   };
 
@@ -478,18 +487,15 @@ Entries today: ${today.entries.length}.
     'polite': [
       "Bit close — light dinner, yeah?",
       "Snug. I'll pick a small tea.",
-      "Right then, careful at tea. Easy.",
     ],
     'cheeky': [
       "Tight. I'll line up a small dinner.",
-      "Reader, dinner now wears handcuffs.",
       "Cutting it fine. Soup tonight.",
       "Borderline. Behave at tea.",
     ],
     'savage': [
       "On the wire. Salad pays the toll.",
       "Snug. The audacity to want dinner.",
-      "Reader, dinner has been demoted.",
     ],
   };
 
@@ -497,18 +503,15 @@ Entries today: ${today.entries.length}.
     'polite': [
       "Over today — we rebuild tomorrow.",
       "Past it, love. Easy day next.",
-      "Right then, gentle reset tomorrow.",
     ],
     'cheeky': [
       "Over. We rebuild tomorrow.",
-      "Reader, we have overshot.",
       "Bit much. Sober dinner sorts it.",
-      "And lo, the wheels. We carry on.",
+      "Crime scene. Fixing the week.",
     ],
     'savage': [
       "Absolute scenes. We rebuild — silently.",
       "Disaster. Tomorrow does the apologising.",
-      "Reader, she has gone full feral.",
       "Noted, your honour. The week pays.",
     ],
   };
