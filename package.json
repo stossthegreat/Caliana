@@ -1,8 +1,0 @@
-{
-  "name": "caliana",
-  "private": true,
-  "description": "Stub package.json so Railway's Railpack node provider initializes. Real backend lives in backend/.",
-  "engines": {
-    "node": ">=20.0.0"
-  }
-}
