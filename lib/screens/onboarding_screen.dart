@@ -8,6 +8,7 @@ import '../models/user_profile.dart';
 import '../services/user_profile_service.dart';
 import '../services/analytics_service.dart';
 import '../widgets/aurora_background.dart';
+import '../widgets/character_card.dart';
 
 /// Caliana's onboarding. 10 screens, ~90 sec.
 /// Captures everything needed to compute calorie + macro goals, plus
@@ -799,45 +800,26 @@ class _ToneState extends State<_Tone> {
   late String _tone = widget.draft.tone;
   late bool _ack = widget.draft.edSafetyAcknowledged;
 
-  static const _tones = [
-    {
-      'value': 'polite',
-      'emoji': '🤝',
-      'title': 'Polite',
-      'sub': '"Lovely choice — let\'s keep it light tonight."',
-    },
-    {
-      'value': 'cheeky',
-      'emoji': '😏',
-      'title': 'Cheeky',
-      'sub': '"Right, you\'ve absolutely demolished lunch — onwards."',
-    },
-    {
-      'value': 'savage',
-      'emoji': '🔥',
-      'title': 'Savage',
-      'sub': '"Third croissant. Bold. We\'re fixing this together."',
-    },
-  ];
+  static const _tones = ['polite', 'cheeky', 'savage'];
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      physics: const BouncingScrollPhysics(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _Title('Pick Caliana\'s tone'),
-          const _Subtitle('You can change this any time in Settings.'),
+          const _Title('Pick your Caliana'),
+          const _Subtitle(
+              'Same character, three modes. Switch any time in Settings.'),
           const SizedBox(height: 22),
-          ..._tones.map((opt) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _GoalCard(
-                  emoji: opt['emoji']!,
-                  title: opt['title']!,
-                  sub: opt['sub']!,
-                  selected: _tone == opt['value'],
-                  onTap: () => setState(() => _tone = opt['value']!),
+          ..._tones.map((value) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: CharacterCard(
+                  value: value,
+                  selected: _tone == value,
+                  onTap: () => setState(() => _tone = value),
                 ),
               )),
           const SizedBox(height: 14),
@@ -903,7 +885,7 @@ class _ToneState extends State<_Tone> {
               ),
             ),
           ),
-          const Spacer(),
+          const SizedBox(height: 22),
           _PrimaryButton(
             label: 'Continue',
             enabled: _ack,
@@ -915,6 +897,7 @@ class _ToneState extends State<_Tone> {
               widget.onNext();
             },
           ),
+          const SizedBox(height: 12),
         ],
       ),
     );

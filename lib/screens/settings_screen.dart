@@ -8,6 +8,7 @@ import '../services/app_settings_service.dart';
 import '../services/usage_service.dart';
 import '../services/day_log_service.dart';
 import '../widgets/aurora_background.dart';
+import '../widgets/character_card.dart';
 
 const _kPrivacyUrl = 'https://stossthegreat.github.io/Caliana/privacy.html';
 const _kTermsUrl = 'https://stossthegreat.github.io/Caliana/terms.html';
@@ -278,57 +279,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _toneRow() {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(child: _toneBtn('polite', 'Polite', '🤝')),
-        const SizedBox(width: 8),
-        Expanded(child: _toneBtn('cheeky', 'Cheeky', '😏')),
-        const SizedBox(width: 8),
-        Expanded(child: _toneBtn('savage', 'Savage', '🔥')),
-      ],
-    );
-  }
-
-  Widget _toneBtn(String value, String label, String emoji) {
-    final selected = _draft.tone == value;
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        setState(() => _draft = _draft.copyWith(tone: value));
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        height: 64,
-        decoration: BoxDecoration(
-          color: selected
-              ? AppColors.accent.withValues(alpha: 0.18)
-              : Colors.white.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected
-                ? AppColors.accent.withValues(alpha: 0.5)
-                : Colors.white.withValues(alpha: 0.10),
-            width: selected ? 1.4 : 1,
+        for (final v in const ['polite', 'cheeky', 'savage']) ...[
+          CharacterCard(
+            value: v,
+            selected: _draft.tone == v,
+            onTap: () {
+              setState(() => _draft = _draft.copyWith(tone: v));
+            },
           ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 18)),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                color: selected
-                    ? AppColors.textPrimary
-                    : AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
+          if (v != 'savage') const SizedBox(height: 10),
+        ],
+      ],
     );
   }
 

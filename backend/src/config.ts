@@ -27,10 +27,26 @@ export const config = {
 
   // ---- ElevenLabs TTS (Caliana's voice) ----
   elevenLabsApiKey: optional('ELEVENLABS_API_KEY', ''),
-  // Default: Lily — British female, young, playful. Perfect for Caliana.
+  // Per-tone voices so each character (Polite / Cheeky / Savage) sounds
+  // like a slightly different person — Polite = warmer, Cheeky = default
+  // young British playful, Savage = a touch more arch/authoritative.
+  // Each falls back to the generic ELEVENLABS_VOICE_ID if not set, which
+  // itself defaults to Lily (British female, young, playful).
   elevenLabsVoiceId: optional(
     'ELEVENLABS_VOICE_ID',
-    'pFZP5JQG7iQjIQuC4Bku',
+    'pFZP5JQG7iQjIQuC4Bku', // Lily — default
+  ),
+  elevenLabsVoiceIdPolite: optional(
+    'ELEVENLABS_VOICE_ID_POLITE',
+    '', // falls back to elevenLabsVoiceId at request time
+  ),
+  elevenLabsVoiceIdCheeky: optional(
+    'ELEVENLABS_VOICE_ID_CHEEKY',
+    '',
+  ),
+  elevenLabsVoiceIdSavage: optional(
+    'ELEVENLABS_VOICE_ID_SAVAGE',
+    '',
   ),
   // Default: turbo v2.5 — low latency, ideal for chat replies.
   elevenLabsModel: optional(
