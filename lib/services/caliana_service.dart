@@ -85,12 +85,13 @@ class CalianaService {
   // ---------------------------------------------------------------------------
   Future<String?> synthesizeVoice(String text) async {
     if (_baseUrl.isEmpty || text.trim().isEmpty) return null;
+    final tone = UserProfileService.instance.profile.tone;
     try {
       final res = await http
           .post(
             Uri.parse('$_baseUrl/api/caliana-voice'),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'text': text.trim()}),
+            body: jsonEncode({'text': text.trim(), 'tone': tone}),
           )
           .timeout(const Duration(seconds: 20));
       if (res.statusCode != 200) {
