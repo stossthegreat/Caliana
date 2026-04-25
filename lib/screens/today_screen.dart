@@ -913,13 +913,155 @@ class _TodayScreenState extends State<TodayScreen> {
     return (hasVerb && hasNoun) || hasQuantity;
   }
 
+  /// Bottom sheet that lets the user pick whether to shoot a fresh photo
+  /// or pick one from the library. Returns null if dismissed.
+  Future<ImageSource?> _pickPhotoSource({
+    required String title,
+    required String cameraLabel,
+    required String gallerySubtitle,
+  }) async {
+    HapticFeedback.lightImpact();
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceBorder,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.textPrimary,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _photoSourceTile(
+                  icon: Icons.camera_alt_rounded,
+                  title: cameraLabel,
+                  subtitle: 'Open the camera now',
+                  onTap: () => Navigator.pop(sheetCtx, ImageSource.camera),
+                ),
+                const SizedBox(height: 8),
+                _photoSourceTile(
+                  icon: Icons.photo_library_rounded,
+                  title: 'Choose from library',
+                  subtitle: gallerySubtitle,
+                  onTap: () => Navigator.pop(sheetCtx, ImageSource.gallery),
+                ),
+                const SizedBox(height: 4),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _photoSourceTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Ink(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(14),
+            border:
+                Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: AppColors.primary, size: 20),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textHint,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textHint,
+                size: 22,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _onCameraTap() async {
     if (!UsageService.instance.canSnapPhoto) {
       _openPaywall(trigger: 'photo_limit');
       return;
     }
+    final source = await _pickPhotoSource(
+      title: 'Log this meal',
+      cameraLabel: 'Take a photo',
+      gallerySubtitle: 'Pick an existing meal photo',
+    );
+    if (source == null) return;
     final picked = await _imagePicker.pickImage(
-      source: ImageSource.camera,
+      source: source,
       imageQuality: 85,
       maxWidth: 1600,
     );
@@ -933,8 +1075,14 @@ class _TodayScreenState extends State<TodayScreen> {
       _openPaywall(trigger: 'fridge_limit');
       return;
     }
+    final source = await _pickPhotoSource(
+      title: 'Show me your fridge',
+      cameraLabel: 'Take a photo',
+      gallerySubtitle: 'Pick a fridge photo from your library',
+    );
+    if (source == null) return;
     final picked = await _imagePicker.pickImage(
-      source: ImageSource.camera,
+      source: source,
       imageQuality: 85,
       maxWidth: 1600,
     );
