@@ -32,7 +32,7 @@ class CalianaBubble extends StatelessWidget {
     if (message.type == 'mealSuggest' && message.mealIdeas.isNotEmpty) {
       return _mealSuggestStack();
     }
-    return message.isUser ? _userBubble() : _calianaBubble();
+    return message.isUser ? _userBubble(context) : _calianaBubble();
   }
 
   Widget _mealSuggestStack() {
@@ -148,7 +148,7 @@ class CalianaBubble extends StatelessWidget {
     );
   }
 
-  Widget _userBubble() {
+  Widget _userBubble(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
