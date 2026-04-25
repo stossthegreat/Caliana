@@ -432,41 +432,45 @@ Entries today: ${today.entries.length}.
     ],
   };
 
-  // Calorie-progress pools.
+  // Calorie-progress pools — narrator voice. Stephen Fry energy.
   static const Map<String, List<String>> _under50 = {
     'polite': [
       "Clean slate, love. Make it count.",
       "Right then — fresh start. Tidy.",
       "Plenty of room. Pick something proper.",
+      "And so, the day begins. Easy does it.",
     ],
     'cheeky': [
       "Clean slate. Don't waste it.",
+      "Reader, the day is young.",
       "Plenty in the tank. Behave.",
-      "Right, blank canvas. Make it count.",
+      "Behold: a blank canvas. Don't fumble it.",
       "Loads of room. Don't blow it on crisps.",
     ],
     'savage': [
-      "Clean slate. Try not to wreck it by ten.",
-      "Vast reserves. The day awaits your crimes.",
+      "And so, a fresh slate. Try not to wreck it by ten.",
+      "Vast reserves. The plot has not yet thickened.",
       "Empty diary. Audacious, given last week.",
     ],
   };
 
   static const Map<String, List<String>> _half = {
     'polite': [
-      "Halfway, love. Light dinner sorts it.",
-      "On track. Easy tea tonight.",
+      "Halfway there. Light dinner sorts it.",
+      "On track, love. Easy tea tonight.",
+      "And lo, the midpoint. Steady on.",
     ],
     'cheeky': [
       "Halfway. Dinner stays civil.",
-      "Right, on pace. Behave at tea.",
+      "Reader, the pace is acceptable.",
+      "On the rails. Behave at tea.",
       "Smashing. Don't get cocky.",
       "Tidy. Light dinner, stay golden.",
     ],
     'savage': [
-      "Halfway. Restraint until tea, please.",
+      "Halfway. The restraint, briefly, is noted.",
       "Mid-day discipline. Unrecognisable.",
-      "On pace. Astonishing.",
+      "On pace. The plot resists thickening.",
     ],
   };
 
@@ -474,15 +478,18 @@ Entries today: ${today.entries.length}.
     'polite': [
       "Bit close — light dinner, yeah?",
       "Snug. I'll pick a small tea.",
+      "Right then, careful at tea. Easy.",
     ],
     'cheeky': [
       "Tight. I'll line up a small dinner.",
+      "Reader, dinner now wears handcuffs.",
       "Cutting it fine. Soup tonight.",
       "Borderline. Behave at tea.",
     ],
     'savage': [
       "On the wire. Salad pays the toll.",
       "Snug. The audacity to want dinner.",
+      "Reader, dinner has been demoted.",
     ],
   };
 
@@ -490,16 +497,19 @@ Entries today: ${today.entries.length}.
     'polite': [
       "Over today — we rebuild tomorrow.",
       "Past it, love. Easy day next.",
+      "Right then, gentle reset tomorrow.",
     ],
     'cheeky': [
       "Over. We rebuild tomorrow.",
+      "Reader, we have overshot.",
       "Bit much. Sober dinner sorts it.",
-      "Crime scene. Fixing the week.",
+      "And lo, the wheels. We carry on.",
     ],
     'savage': [
-      "Absolute mare. We rebuild — silently.",
+      "Absolute scenes. We rebuild — silently.",
       "Disaster. Tomorrow does the apologising.",
-      "Scenes. We file it under \"learning\".",
+      "Reader, she has gone full feral.",
+      "Noted, your honour. The week pays.",
     ],
   };
 

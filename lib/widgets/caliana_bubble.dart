@@ -153,33 +153,37 @@ class CalianaBubble extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          const SizedBox(width: 56),
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(14, 9, 14, 9),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0F172A),
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(4),
-                    bottomLeft: Radius.circular(16),
-                    bottomRight: Radius.circular(16),
-                  ),
+          const Spacer(flex: 1),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              // Cap user bubble at ~78% of screen so long rambles don't
+              // span full width and read as centred. The Spacer pushes
+              // anything shorter against the right edge.
+              maxWidth: MediaQuery.of(context).size.width * 0.78,
+            ),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(14, 9, 14, 9),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(4),
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
                 ),
-                child: Text(
-                  message.text,
-                  style: const TextStyle(
-                    fontSize: 14.5,
-                    height: 1.35,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
-                  ),
+              ),
+              child: Text(
+                message.text,
+                style: const TextStyle(
+                  fontSize: 14.5,
+                  height: 1.35,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
           ),
+          const SizedBox(width: 4),
         ],
       ),
     );
