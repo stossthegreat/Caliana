@@ -14,8 +14,6 @@ import '../services/caliana_service.dart';
 import '../services/saved_meals_service.dart';
 import '../services/usage_service.dart';
 import '../services/transcribe_service.dart';
-
-const _kFirstWelcomeKey = 'caliana_first_welcome_played_v1';
 import '../models/meal_idea.dart';
 import '../models/saved_meal.dart';
 import '../widgets/calorie_ring.dart';
@@ -28,6 +26,8 @@ import '../widgets/quick_actions_bar.dart';
 import '../widgets/recipes_sheet.dart';
 import 'paywall_screen.dart';
 import 'settings_screen.dart';
+
+const _kFirstWelcomeKey = 'caliana_first_welcome_played_v1';
 
 /// Caliana home — BLUE strip ONLY at top (top bar + date strip).
 /// Below: white content with calorie ring + 3 macro circles, then chat
