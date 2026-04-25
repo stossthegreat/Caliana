@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'theme/app_theme.dart';
 import 'screens/today_screen.dart';
 import 'screens/onboarding_screen.dart';
@@ -21,15 +20,6 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    bool firebaseReady = false;
-    try {
-      await Firebase.initializeApp();
-      firebaseReady = true;
-      debugPrint('✅ Firebase initialized');
-    } catch (e) {
-      debugPrint('⚠️ Firebase init failed (analytics disabled): $e');
-    }
-
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -54,11 +44,7 @@ void main() async {
     ]);
     debugPrint('✅ Caliana services loaded');
 
-    if (firebaseReady) {
-      try {
-        AnalyticsService.instance.logAppOpen();
-      } catch (_) {}
-    }
+    AnalyticsService.instance.logAppOpen();
 
     // Production: replace red error widgets with empty space.
     ErrorWidget.builder = (FlutterErrorDetails details) {
@@ -66,10 +52,7 @@ void main() async {
       return const SizedBox.shrink();
     };
 
-    runApp(CalianaApp(
-      showOnboarding: !onboardingSeen,
-      firebaseReady: firebaseReady,
-    ));
+    runApp(CalianaApp(showOnboarding: !onboardingSeen));
   } catch (e, stack) {
     debugPrint('❌ CRITICAL INIT CRASH: $e\n$stack');
     runApp(_FailsafeApp(error: e, stack: stack));
@@ -78,12 +61,10 @@ void main() async {
 
 class CalianaApp extends StatelessWidget {
   final bool showOnboarding;
-  final bool firebaseReady;
 
   const CalianaApp({
     super.key,
     required this.showOnboarding,
-    required this.firebaseReady,
   });
 
   @override
@@ -92,8 +73,6 @@ class CalianaApp extends StatelessWidget {
       title: 'Caliana',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,
-      navigatorObservers:
-          firebaseReady ? [AnalyticsService.instance.observer] : const [],
       home: showOnboarding ? const _OnboardingGate() : const TodayScreen(),
     );
   }
