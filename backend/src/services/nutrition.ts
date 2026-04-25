@@ -15,7 +15,7 @@ const TEXT_SYSTEM = `You parse a user's text or transcribed speech into a SINGLE
 
 Return JSON only — no prose:
 {
-  "name": "concise food name (3-6 words)",
+  "name": "concise food name (2-5 words, never a sentence)",
   "calories": 350,
   "protein": 18,
   "carbs": 35,
@@ -24,8 +24,20 @@ Return JSON only — no prose:
   "notes": ""
 }
 
+NAME RULES — STRICT:
+- "name" must be a SHORT dish label, never a sentence and never the user's words.
+- Strip emotion, filler, complaints, and self-talk. The user can ramble; you don't.
+- Maximum 5 words. Title case. No trailing punctuation.
+- Examples:
+  - "Oh my god I messed up I had three burgers" -> "3 burgers"
+  - "fml ate a whole pizza by myself" -> "Whole pizza"
+  - "Just had a chicken caesar" -> "Chicken caesar salad"
+  - "literally just three black coffees" -> "3 black coffees"
+- If the user mentions multiple distinct foods, sum into one entry and name it
+  generically (e.g. "Lunch combo", "Pub meal").
+
 CONFIDENCE RULES:
-- HIGH: clear single food + known portion ("medium banana", "200g chicken breast", "1 large coffee with milk")
+- HIGH: clear single food + known portion ("medium banana", "200g chicken breast")
 - MEDIUM: known dish but portion ambiguous ("had a burger", "chicken sandwich")
 - LOW: complex/mixed dish or vague description ("had lunch", "snack")
 
@@ -34,8 +46,6 @@ ESTIMATION RULES:
 - Sum components for mixed dishes (sandwich = bread + filling + mayo).
 - Be honest. If you're guessing, mark "low" and call out assumptions in notes.
 - Round calories to nearest 10, macros to nearest 1g.
-- If a single message describes multiple foods, sum them into one entry and
-  set the name to a generic summary (e.g. "Lunch combo").
 - Never return zero everywhere — if the user says they ate something, estimate.`;
 
 const PHOTO_SYSTEM = `You see a photo of food and parse it into a SINGLE log entry with realistic estimates.
@@ -123,9 +133,14 @@ export async function parseFromPhoto(
 
 function normalize(parsed: unknown, fallbackName: string): FoodEntryDraft {
   const p = (parsed && typeof parsed === 'object' ? parsed : {}) as Record<string, unknown>;
-  const name = typeof p.name === 'string' && p.name.trim().length > 0
+  let name = typeof p.name === 'string' && p.name.trim().length > 0
     ? p.name.trim()
     : titleCase(fallbackName);
+  // Belt-and-braces: never let a multi-sentence ramble through as the name.
+  // Cap at 50 chars and strip anything after the first sentence boundary.
+  name = name.replace(/[.!?].*$/, '').trim();
+  if (name.length > 50) name = name.slice(0, 47).trimEnd() + '…';
+  if (!name) name = 'Logged food';
   const calories = clampInt(p.calories, 0, 6000);
   const protein = clampInt(p.protein, 0, 500);
   const carbs = clampInt(p.carbs, 0, 800);

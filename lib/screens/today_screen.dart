@@ -95,17 +95,17 @@ class _TodayScreenState extends State<TodayScreen> {
     final name = profile.name.trim();
     final hi = name.isEmpty ? 'love' : name;
 
-    // Sassy-warm British. Time-of-day framed. Lands on a clear ask so the
-    // user has a next move, not a dead-end greeting.
+    // Narrator-style time-of-day opener. Distinct from chat replies (which
+    // are short reactions) so the two never collide visually.
     final line = hour < 5
-        ? "Up at this hour, $hi? Bold. Tell me what we're working with today."
+        ? "Up at this hour, $hi? Brave. Tell me what we're working with."
         : hour < 12
-            ? "Morning, $hi. Right — show me the first meal and we'll plan from there."
+            ? "Morning, $hi. Right then — show me the opening act."
             : hour < 17
-                ? "Afternoon, $hi. What's gone in so far? Don't be shy, I've seen worse."
+                ? "Afternoon, $hi. Reader, what's gone in so far?"
                 : hour < 21
-                    ? "Evening, $hi. Let's tally up the day before dinner gets ambitious."
-                    : "Late one, $hi. Quick log and I'll keep tomorrow easy.";
+                    ? "Evening, $hi. Let's tally up before dinner gets ambitious."
+                    : "Late one, $hi. Quick log and I'll keep tomorrow gentle.";
 
     final msg = ChatMessage(
       id: 'm_${DateTime.now().millisecondsSinceEpoch}',
@@ -613,16 +613,34 @@ class _TodayScreenState extends State<TodayScreen> {
     _scrollToBottom();
   }
 
+  // True only when the message clearly LOGS food. We require a logging
+  // verb anchored near the start AND a food noun, OR an explicit quantity
+  // ("400 kcal", "3 burgers"). This stops rants like "I had a terrible
+  // day, three burgers and a meltdown" from being parsed as a meal.
   bool _looksLikeFoodLog(String text) {
-    final t = text.toLowerCase();
-    const verbs = ['ate', 'had', 'eating', 'just had', 'snacked', 'drank'];
+    final t = text.toLowerCase().trim();
+    if (t.length > 140) return false; // Long rambles are not food logs.
+
+    const verbs = [
+      'ate ', 'had ', 'eating ', 'just had ', 'snacked ', 'drank ',
+      'just ate', 'just drank', 'i ate', 'i had', 'i drank',
+    ];
     const nouns = [
       'salad', 'pizza', 'burger', 'rice', 'pasta', 'chicken', 'sandwich',
       'coffee', 'apple', 'banana', 'eggs', 'toast', 'soup', 'steak',
       'fries', 'chips', 'cookie', 'cake', 'biscuit', 'yogurt', 'smoothie',
       'protein', 'wrap', 'bowl', 'noodles', 'curry', 'fish', 'ramen',
+      'cheesecake', 'doughnut', 'donut', 'croissant', 'porridge', 'oats',
     ];
-    return verbs.any(t.contains) || nouns.any(t.contains);
+
+    final hasVerb = verbs.any(t.contains);
+    final hasNoun = nouns.any(t.contains);
+    final hasQuantity = RegExp(r'\b\d+\s?(kcal|cal|calories|g)\b').hasMatch(t);
+
+    // Verb + noun is the strong signal. Quantity alone also counts
+    // ("400 kcal protein bar"). Noun alone is too weak — "burger" inside
+    // a complaint doesn't mean they ate one.
+    return (hasVerb && hasNoun) || hasQuantity;
   }
 
   Future<void> _onCameraTap() async {
