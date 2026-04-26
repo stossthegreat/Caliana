@@ -1304,22 +1304,37 @@ class _TodayScreenState extends State<TodayScreen> {
     );
     final entry = await CalianaService.instance
         .parseFoodFromPhoto(path, hint: hint);
-    if (entry != null) {
-      await DayLogService.instance.addEntry(entry);
-      await DayLogService.instance.addMessage(
-        DateTime.now(),
-        ChatMessage(
-          id: 'm_${DateTime.now().millisecondsSinceEpoch}_log',
+    // ALWAYS show the food card with the photo. If GPT couldn't read it
+    // (network, timeout, dud response), we still drop a card with the
+    // photo + 0 kcal + low confidence so the user sees something they
+    // can tap-to-edit, not a silent disappearance.
+    final FoodEntry rendered = entry ??
+        FoodEntry(
+          id: 'fe_${DateTime.now().millisecondsSinceEpoch}',
           timestamp: DateTime.now(),
-          role: 'caliana',
-          type: 'foodLog',
-          text: entry.name,
-          foodEntry: entry,
-        ),
-      );
-    } else {
-      _showFoodLogError();
-    }
+          name: 'Snapped meal',
+          calories: 0,
+          proteinGrams: 0,
+          carbsGrams: 0,
+          fatGrams: 0,
+          inputMethod: 'photo',
+          photoPath: path,
+          confidence: 'low',
+          notes: "Couldn't read the photo. Tap to fill in.",
+        );
+    await DayLogService.instance.addEntry(rendered);
+    await DayLogService.instance.addMessage(
+      DateTime.now(),
+      ChatMessage(
+        id: 'm_${DateTime.now().millisecondsSinceEpoch}_log',
+        timestamp: DateTime.now(),
+        role: 'caliana',
+        type: 'foodLog',
+        text: rendered.name,
+        foodEntry: rendered,
+      ),
+    );
+    if (entry == null) _showFoodLogError();
     final reply = await CalianaService.instance.chat(
       entry == null
           ? 'Snapped a meal — react.'

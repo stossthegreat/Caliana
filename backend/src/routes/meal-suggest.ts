@@ -5,6 +5,7 @@ import { fetchParallel } from '../services/fetcher.js';
 import { extractRecipeFromHtml } from '../services/jsonld.js';
 import { isBlocked } from '../data/domains.js';
 import { config } from '../config.js';
+import { getOpenAI } from '../services/openai_client.js';
 
 interface MealSuggestRequest {
   /** Free-form ask: "high protein dinner", "quick lunch", "light clean meal" */
@@ -70,12 +71,21 @@ export async function registerMealSuggestRoute(
           userContext,
         );
 
-        // We deliberately DO NOT fall back to GPT-only slim ideas
-        // here. Mixing image-rich recipe cards with bare-text cards
-        // looked cheap and inconsistent. If we can't scrape real
-        // recipes with images, return [] and let Flutter show a
-        // Caliana chat reply instead.
-        return { ideas };
+        if (ideas.length > 0) {
+          return { ideas };
+        }
+
+        // Pipeline returned nothing usable (Google blocked us, no
+        // JSON-LD on the candidate pages, all results stripped by the
+        // image-only filter, etc). Generate GPT meal ideas with stock
+        // food placeholder images so the user never sees a chat list
+        // of food names where they expected recipe cards.
+        const fallback = await fallbackGptIdeas(
+          ask.trim(),
+          remainingKcal,
+          userContext,
+        );
+        return { ideas: fallback };
       } catch (err) {
         req.log.error({ err }, 'meal-suggest failed');
         return reply.status(500).send({
@@ -97,12 +107,22 @@ async function suggestRealRecipes(
   remainingKcal: number | undefined,
   userContext: string | undefined,
 ): Promise<RichMealIdea[]> {
-  // Build a search query that biases Google toward real recipe pages
-  // with photos. Budget hint nudges results to the right calorie range.
+  // Vary the query each call so we don't return the same 3 recipes
+  // every single time. Pull from a small rotation of suffixes — Google
+  // re-ranks meaningfully with even a one-word change.
+  const variants = [
+    'recipe with photo',
+    'easy recipe',
+    'best recipe',
+    'recipe ideas',
+    'simple recipe',
+    'recipe for one',
+  ];
+  const variant = variants[Math.floor(Math.random() * variants.length)];
   const budgetHint = typeof remainingKcal === 'number' && remainingKcal > 0
     ? ` under ${Math.round(remainingKcal)} calories`
     : '';
-  const query = `${ask}${budgetHint} recipe with photo`;
+  const query = `${ask}${budgetHint} ${variant}`;
 
   // Pull a wide net so the image-only filter still has plenty to pick
   // from after low-quality recipes are stripped.
@@ -373,5 +393,93 @@ function formatScaled(n: number): string {
   if (bestDiff < 0.06) return best[1];
   // Otherwise round to 2 decimals.
   return (Math.round(n * 100) / 100).toString();
+}
+
+/**
+ * Last-ditch fallback when the JSON-LD pipeline returns nothing.
+ * GPT-4o mini generates 2-3 real, common dishes that fit the ask, and
+ * each one gets a stock food image via loremflickr (no API key, free,
+ * deterministic for a given seed). Cards still render visually
+ * consistent — never a list of bare names.
+ */
+async function fallbackGptIdeas(
+  ask: string,
+  remainingKcal: number | undefined,
+  userContext: string | undefined,
+): Promise<RichMealIdea[]> {
+  const budgetLine = typeof remainingKcal === 'number' && remainingKcal > 0
+    ? `BUDGET: ~${Math.round(remainingKcal)} kcal for one serving.`
+    : 'BUDGET: aim for 400-600 kcal per serving.';
+
+  const system = `Generate 3 real, common dishes that fit the user's ask and budget.
+Return JSON only:
+{"ideas":[{"name":"3-5 word dish name","calories":420,"protein":38,"carbs":22,"fat":16,"ingredients":["...","..."],"steps":["...","..."],"imageQuery":"single word or two for image search e.g. 'chicken salad', 'pasta bake'"}]}
+RULES:
+- 3 ideas. Real, common dishes (chicken caesar salad, tuna pasta bake, salmon teriyaki) — never invented fusion names.
+- Calories realistic for ONE serving. Macros sum within 15% of calories (P*4 + C*4 + F*9).
+- 5-8 ingredient lines with quantities for ONE PORTION (UK measurements).
+- 3-5 short imperative steps, one sentence each.
+- Round calories to 10. Round macros to 1g.
+- imageQuery: 1-3 words that describe the dish for stock-image search (no commas, no quotes).`;
+
+  const user = [
+    budgetLine,
+    userContext ? `USER: ${userContext}` : '',
+    `ASK: ${ask}`,
+  ].filter(Boolean).join('\n');
+
+  const response = await getOpenAI().chat.completions.create({
+    model: config.openaiModel,
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ],
+    temperature: 0.6,
+    max_tokens: 900,
+    response_format: { type: 'json_object' },
+  });
+
+  const raw = response.choices[0]?.message?.content || '{"ideas":[]}';
+  let parsed: { ideas?: Array<Partial<RichMealIdea> & { imageQuery?: string }> };
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!parsed.ideas || !Array.isArray(parsed.ideas)) return [];
+
+  return parsed.ideas.slice(0, 3).map((i, idx) => {
+    const name = String(i.name || 'Meal idea');
+    const imageQuery = (i.imageQuery && String(i.imageQuery).trim()) || name;
+    return {
+      name,
+      calories: clampInt(i.calories, 0, 2000),
+      protein: clampInt(i.protein, 0, 200),
+      carbs: clampInt(i.carbs, 0, 300),
+      fat: clampInt(i.fat, 0, 200),
+      ingredients: cleanStringList(i.ingredients, 8),
+      steps: cleanStringList(i.steps, 6),
+      // Stock food image — no API key needed. Seeded so each idea
+      // gets a different photo even within the same response.
+      imageUrl: `https://loremflickr.com/640/480/${encodeURIComponent(
+        imageQuery.toLowerCase().replace(/\s+/g, ','),
+      )}/?lock=${Date.now() + idx}`,
+      servings: 1,
+    } satisfies RichMealIdea;
+  });
+}
+
+function cleanStringList(raw: unknown, max: number): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((x) => (typeof x === 'string' ? x.trim() : ''))
+    .filter((s) => s.length > 0 && s.length <= 200)
+    .slice(0, max);
+}
+
+function clampInt(v: unknown, min: number, max: number): number {
+  const n = typeof v === 'number' ? v : Number(v);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(min, Math.min(max, Math.round(n)));
 }
 
