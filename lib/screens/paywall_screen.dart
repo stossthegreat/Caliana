@@ -77,10 +77,19 @@ class _PaywallScreenState extends State<PaywallScreen> {
               .where((p) => p.packageType == PackageType.annual)
               .cast<Package?>()
               .firstWhere((_) => true, orElse: () => null);
-      // Default selection: monthly (because it carries the 7-day
-      // trial — the headline pitch). User can flip to annual.
-      _selected = _monthly ?? _annual;
+      // Default selection: ANNUAL — that's where the 7-day free trial
+      // lives. Monthly is a no-trial option for users who don't want
+      // to commit a year up-front.
+      _selected = _annual ?? _monthly;
     });
+  }
+
+  /// True when the package's store product has an active intro offer
+  /// (i.e. a free or discounted trial). RevenueCat exposes this via
+  /// StoreProduct.introductoryPrice — present means trial available.
+  bool _hasIntroTrial(Package? p) {
+    if (p == null) return false;
+    return p.storeProduct.introductoryPrice != null;
   }
 
   String get _ctaLabel {
@@ -90,11 +99,14 @@ class _PaywallScreenState extends State<PaywallScreen> {
       return 'Start 7-day free trial';
     }
     final priceString = pkg.storeProduct.priceString;
-    if (pkg.packageType == PackageType.monthly) {
+    if (_hasIntroTrial(pkg)) {
       return 'Start 7-day free trial';
     }
     if (pkg.packageType == PackageType.annual) {
       return 'Subscribe — $priceString / year';
+    }
+    if (pkg.packageType == PackageType.monthly) {
+      return 'Subscribe — $priceString / month';
     }
     return 'Subscribe — $priceString';
   }
@@ -102,17 +114,23 @@ class _PaywallScreenState extends State<PaywallScreen> {
   String _selectedDisclosure() {
     final pkg = _selected;
     if (pkg == null) {
-      return '7-day free trial, then a recurring subscription. Auto-renews '
-          'unless cancelled at least 24 hours before the period ends. '
-          'Cancel any time in your store account settings.';
+      return '7-day free trial on the annual plan, then a recurring '
+          'subscription. Auto-renews unless cancelled at least 24 hours '
+          'before the period ends. Cancel any time in your store account.';
     }
     final price = pkg.storeProduct.priceString;
-    if (pkg.packageType == PackageType.monthly) {
-      return '7-day free trial, then $price billed every month. '
+    if (_hasIntroTrial(pkg)) {
+      return '7-day free trial, then $price billed every year. '
           "You won't be charged during the trial — cancel any time in "
           "your store account at least 24 hours before the trial ends "
           "and you'll pay nothing. After the trial, the subscription "
-          'auto-renews monthly until you cancel.';
+          'auto-renews yearly until you cancel.';
+    }
+    if (pkg.packageType == PackageType.monthly) {
+      return 'Auto-renewing subscription, $price billed every month. '
+          'No free trial on monthly — switch to annual for the 7-day '
+          'trial. Cancel any time in your store account at least 24 '
+          'hours before the period ends.';
     }
     if (pkg.packageType == PackageType.annual) {
       return 'Auto-renewing subscription, $price billed every year. '
@@ -239,10 +257,12 @@ class _PaywallScreenState extends State<PaywallScreen> {
           ),
         ),
         const SizedBox(height: 6),
-        Text(
-          'Unlimited everything. Try 7 days free.',
+        const Text(
+          'Unlimited everything.\nAnnual: 7 days free.',
+          textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 15,
+            height: 1.35,
             color: AppColors.textSecondary,
             fontWeight: FontWeight.w600,
             letterSpacing: -0.2,
@@ -311,7 +331,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
             package: _monthly,
             label: 'Monthly',
             sub: '/month',
-            badge: '7-DAY FREE TRIAL',
+            // Monthly has no trial — keep the badge factual rather
+            // than implying a 7-day trial that the store doesn't ship.
+            badge: 'NO COMMITMENT',
             isSelected: _selected == _monthly && _monthly != null,
             onTap: _monthly == null
                 ? null
@@ -324,7 +346,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
             package: _annual,
             label: 'Annual',
             sub: '/year',
-            badge: 'BEST VALUE',
+            badge: _hasIntroTrial(_annual)
+                ? '7-DAY FREE TRIAL'
+                : 'BEST VALUE',
             isSelected: _selected == _annual && _annual != null,
             onTap: _annual == null
                 ? null

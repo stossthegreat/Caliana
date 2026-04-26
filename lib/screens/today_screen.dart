@@ -297,7 +297,7 @@ class _TodayScreenState extends State<TodayScreen> {
       role: 'caliana',
       text: line,
       isInterjection: true,
-      actionChips: const ['Snap food', 'Snap fridge', 'Save tonight'],
+      actionChips: const ['Snap food', 'Snap fridge', 'Fix my day'],
     );
     DayLogService.instance.addMessage(DateTime.now(), msg);
   }
@@ -636,11 +636,12 @@ class _TodayScreenState extends State<TodayScreen> {
   // ---------------------------------------------------------------------------
   void _onQuickAction(String id) {
     switch (id) {
-      case 'save_tonight':
-      case 'fix_my_day': // legacy id — keep accepting it
+      case 'fix_my_day':
+      case 'save_tonight': // legacy id from prior label
         _onFixMyDay();
         break;
-      case 'plan_tomorrow':
+      case 'fix_tomorrow':
+      case 'plan_tomorrow': // legacy id
         HapticFeedback.lightImpact();
         MainTabs.goToPlan();
         break;
@@ -1458,13 +1459,14 @@ class _TodayScreenState extends State<TodayScreen> {
         _onFridgeTap();
         return;
       // ── Future-fix chips → Plan tab ──────────────────────────
+      // "Fix tomorrow" is the canonical label. The aliases stay in
+      // case the model ever emits the older "Fix the week" wording.
+      case 'fix tomorrow':
+      case 'plan tomorrow':
+      case 'open plan':
       case 'fix the week':
       case 'rebuild week':
       case 'rebuild the week':
-      case 'plan tomorrow':
-      case 'plan the week':
-      case 'fix tomorrow':
-      case 'open plan':
         HapticFeedback.lightImpact();
         MainTabs.goToPlan();
         return;
