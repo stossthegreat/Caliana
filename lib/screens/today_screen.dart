@@ -575,25 +575,23 @@ class _TodayScreenState extends State<TodayScreen> {
   Widget _buildChatArea(dayLog) {
     return Stack(
       children: [
-        // Hero Caliana — centered, large, sits behind the chat list with a
-        // subtle white veil so messages stay readable on top of her.
+        // Caliana — anchored bottom-left, smaller. She used to dominate
+        // the centre at 240pt; now she's a 140pt presence to the side
+        // so the chat thread can breathe and the user reads messages,
+        // not the back of her head.
         Positioned(
-          left: 0,
-          right: 0,
+          left: 8,
           bottom: 0,
           child: IgnorePointer(
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: ShaderMask(
-                shaderCallback: (rect) => const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0x00FFFFFF), Color(0xFFFFFFFF)],
-                  stops: [0.0, 0.18],
-                ).createShader(rect),
-                blendMode: BlendMode.dstIn,
-                child: const CalianaCharacter(size: 240, floating: true),
-              ),
+            child: ShaderMask(
+              shaderCallback: (rect) => const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0x00FFFFFF), Color(0xFFFFFFFF)],
+                stops: [0.0, 0.22],
+              ).createShader(rect),
+              blendMode: BlendMode.dstIn,
+              child: const CalianaCharacter(size: 140, floating: true),
             ),
           ),
         ),

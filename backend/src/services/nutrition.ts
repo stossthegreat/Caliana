@@ -55,50 +55,51 @@ ESTIMATION RULES — accuracy matters, the user trusts these numbers:
 - Macros must roughly add up: protein*4 + carbs*4 + fat*9 should be within 15% of the calorie total. Re-check before returning.
 - Never return zero everywhere — if the user says they ate something, estimate.`;
 
-const PHOTO_SYSTEM = `You see a photo of food and parse it into a SINGLE log entry with realistic estimates.
+const PHOTO_SYSTEM = `You are a food vision analyst. You see a photo and identify exactly what's in it, then estimate calories and macros.
 
-Return JSON only:
+ANSWER FORMAT — respond with TWO sections, in order:
+
+## Identification
+One sentence describing exactly what you see in the photo. Be specific: "A slice of New York-style cheesecake with strawberry topping on a white plate" or "Two pepperoni pizza slices" or "A chicken caesar salad in a bowl". If you genuinely cannot identify the dish, say so.
+
+## JSON
+\`\`\`json
 {
-  "name": "concise dish name (2-5 words, never a sentence)",
-  "calories": ...,
-  "protein": ...,
-  "carbs": ...,
-  "fat": ...,
+  "name": "2-5 word dish name",
+  "calories": 380,
+  "protein": 6,
+  "carbs": 32,
+  "fat": 24,
   "confidence": "low" | "medium" | "high",
-  "notes": ""
+  "notes": "any assumptions about portion or hidden fats"
 }
+\`\`\`
 
-CONFIDENCE RULES:
-- HIGH: clearly identifiable dish + visible portion + plain ingredients
-- MEDIUM: known dish but hidden ingredients (oils, sauces, dressings — flag in notes)
-- LOW: mixed dish, unclear portion, multiple unknowns
-
-ESTIMATION RULES — accuracy is the whole product, take it seriously:
-- IDENTIFY THE DISH FIRST. Do not guess. If it's a slice of cheesecake,
-  say cheesecake. If it's a doughnut, say doughnut. Never approximate
-  a sweet/dessert as a salad just because portions are small.
-- Use realistic averages for the dish:
+CRITICAL RULES — read every time:
+1. NEVER default to a salad estimate. If you see cake, say cake. If you see pizza, say pizza. Salad is only the answer when you see leaves and dressing.
+2. Identify FIRST in plain English (## Identification section). Then estimate. The estimate must match what you described.
+3. Common foods and their typical kcal — use these as anchors:
     cheesecake slice (~120g): 350-450 kcal, 4P / 30C / 25F
-    glazed doughnut: 250-300 kcal, 4P / 35C / 12F
-    croissant: 270-330 kcal, 6P / 30C / 17F
-    Greggs sausage roll: 327 kcal, 9P / 25C / 22F
-    chocolate brownie: 380-450 kcal
-    chicken caesar salad (full meal): 500-650 kcal
-    grilled salmon + salad: 400-500 kcal
-    pizza slice: 280-350 kcal per slice
-    Big Mac: 550 kcal
-    bowl of pasta with sauce: 500-700 kcal
-- For multi-item plates, sum components.
-- Hidden fats are the #1 error source — if you suspect oil/butter/
-  dressing, ASSUME it and add to fat estimate, mention in notes
-  (e.g. "assumed 1 tbsp oil").
-- If the camera is too close to gauge portion, default to ONE typical
-  serving (not half, not double).
-- Macros must roughly add up: protein*4 + carbs*4 + fat*9 within
-  15% of the calorie total. Re-check before returning.
-- Round calories to nearest 10. Macros to nearest 1g.
-- Be honest about uncertainty in notes — but never invent a salad
-  estimate for a clearly-visible cake.`;
+    glazed doughnut: 250-300, 4P / 35C / 12F
+    croissant: 270-330, 6P / 30C / 17F
+    Greggs sausage roll: 327, 9P / 25C / 22F
+    chocolate brownie: 380-450, 4P / 50C / 22F
+    pizza slice (1): 280-350, 12P / 36C / 12F
+    pepperoni pizza (whole 12"): ~2000, ~72P / ~210C / ~88F
+    Big Mac: 550, 25P / 45C / 30F
+    chicken caesar (full): 500-650, 35P / 25C / 38F
+    grilled salmon + salad: 400-500, 36P / 12C / 24F
+    bowl of pasta + sauce: 500-700, 18P / 80C / 18F
+    full English breakfast: 800-1100, 40P / 60C / 60F
+4. Multi-item plates → sum components.
+5. Hidden fats (oil, butter, dressing) are the #1 underestimation source. Assume them; note them.
+6. If camera is too close to gauge portion, default to ONE typical serving — never half, never double.
+7. Macros must roughly satisfy P*4 + C*4 + F*9 within 15% of total kcal. Re-check before answering.
+8. Round calories to nearest 10. Macros to nearest 1g.
+9. Confidence:
+   - HIGH: clearly identifiable + visible portion
+   - MEDIUM: known dish, ambiguous portion or hidden ingredients
+   - LOW: mixed plate / blurry / unclear`;
 
 /**
  * Parse text or transcribed speech into a single FoodEntry estimate.
@@ -133,8 +134,8 @@ export async function parseFromPhoto(
   const visionModel = 'gpt-4o';
 
   const userMessage = hint && hint.trim().length > 0
-    ? `Hint from the user: ${hint.trim()}\n\nLook at the photo carefully. Describe the dish you actually see, then estimate. Don't default to "salad" — name the food.`
-    : "Look at the photo carefully. Describe the dish you actually see — pizza, cheesecake, pasta, whatever it is — then estimate. Don't default to a salad estimate just because the portion looks small.";
+    ? `Hint from the user: ${hint.trim()}\n\nLook at the photo carefully. First describe what you see in plain English under "## Identification", then return JSON under "## JSON". Don't default to a salad — name the actual food.`
+    : `Look at the photo carefully. First describe what you see in plain English under "## Identification" (be specific: "two pepperoni pizza slices", "a slice of cheesecake", etc). Then return JSON under "## JSON". Don't default to a salad estimate just because the portion looks small.`;
 
   const response = await getOpenAI().chat.completions.create({
     model: visionModel,
@@ -149,21 +150,64 @@ export async function parseFromPhoto(
             image_url: {
               url: imageDataUrl,
               // Force high detail so GPT-4o actually parses the image
-              // pixels properly. Default 'auto' sometimes picks 'low'
-              // for compact uploads, which is why pizzas were coming
-              // back as salads.
+              // pixels properly. Default 'auto' picks 'low' for
+              // compact uploads, which is why pizzas were coming back
+              // as salads.
               detail: 'high',
             },
           },
         ],
       },
     ],
-    temperature: 0.2,
-    max_tokens: 350,
-    response_format: { type: 'json_object' },
+    temperature: 0.15,
+    max_tokens: 500,
+    // NOTE: do NOT set response_format: json_object here. Forcing JSON
+    // mode noticeably degrades GPT-4o vision — the model spends its
+    // budget on schema compliance instead of pixel reading. We let it
+    // think in plain English first (## Identification), then parse the
+    // ## JSON block out of the response below.
   });
-  const raw = response.choices[0]?.message?.content || '{}';
-  return normalize(JSON.parse(raw), hint || 'photographed meal');
+  const raw = response.choices[0]?.message?.content || '';
+  return normalize(extractJsonFromMarkdown(raw), hint || 'photographed meal');
+}
+
+/**
+ * Pull the JSON object out of a vision response that uses our
+ * "## Identification ... ## JSON ```json {...}``` " template. Falls
+ * back to scanning for the first {...} block in the raw text. If
+ * nothing parses, returns {} so normalize() lands on safe defaults.
+ */
+function extractJsonFromMarkdown(raw: string): unknown {
+  if (!raw) return {};
+  // Look for a fenced ```json ... ``` block first (preferred).
+  const fenceMatch = raw.match(/```\s*json\s*([\s\S]*?)```/i);
+  if (fenceMatch) {
+    try {
+      return JSON.parse(fenceMatch[1].trim());
+    } catch {
+      // fall through
+    }
+  }
+  // Generic fenced block.
+  const anyFence = raw.match(/```\s*([\s\S]*?)```/);
+  if (anyFence) {
+    try {
+      return JSON.parse(anyFence[1].trim());
+    } catch {
+      // fall through
+    }
+  }
+  // First-bracket scan as last resort.
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  if (start !== -1 && end !== -1 && end > start) {
+    try {
+      return JSON.parse(raw.slice(start, end + 1));
+    } catch {
+      // fall through
+    }
+  }
+  return {};
 }
 
 function normalize(parsed: unknown, fallbackName: string): FoodEntryDraft {

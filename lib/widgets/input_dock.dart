@@ -95,7 +95,7 @@ class _InputDockState extends State<InputDock>
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -115,20 +115,18 @@ class _InputDockState extends State<InputDock>
                       )
                     : const SizedBox.shrink(),
               ),
-              // Action row — three circular blue buttons. The middle one
-              // is the mic FAB (bigger + pulsing). No labels — every
-              // user knows what a mic, fridge, and camera icon mean.
+              // Action row — left fridge | centre voice pill | right camera.
+              // Pill is the hero, side icons sit at the edges with breathing
+              // room (not glued to the pill). Whole row is shorter than the
+              // old 64pt-tall pill so the dock stops eating screen.
               Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   _sideAction(
                     icon: Icons.kitchen_rounded,
                     onTap: widget.onFridge,
                   ),
-                  const SizedBox(width: 28),
-                  _micFab(),
-                  const SizedBox(width: 28),
+                  Expanded(child: _voicePill()),
                   _sideAction(
                     icon: Icons.camera_alt_rounded,
                     onTap: widget.onCamera,
@@ -224,11 +222,11 @@ class _InputDockState extends State<InputDock>
     );
   }
 
-  /// The hero mic FAB. Solid brand-blue circle, pulsing glow when idle,
-  /// stronger glow + slight scale when recording. Mic icon (or stop /
-  /// arrow-up for send) only — no text. Tap to start/stop a voice turn,
-  /// long-press to hold-to-talk. Morphs into Send when typing.
-  Widget _micFab() {
+  /// The voice pill — centre hero. Brand-blue, rounded-rectangle (not a
+  /// circle), pulsing glow when idle, scales + intense glow when
+  /// recording. Mic icon centred. No text. Smaller than the original
+  /// 64pt monster so the dock leaves room for the chat above.
+  Widget _voicePill() {
     final showSend = _typing && _hasText;
     return GestureDetector(
       onTap: () {
@@ -257,42 +255,49 @@ class _InputDockState extends State<InputDock>
         animation: _pulseCtrl,
         builder: (context, _) {
           final t = _pulseCtrl.value;
-          final scale = widget.isRecording ? 1.06 : 1.0 + (t * 0.025);
-          final glow = widget.isRecording ? 0.55 : 0.22 + (t * 0.22);
+          final scale = widget.isRecording ? 1.04 : 1.0 + (t * 0.018);
+          final glow =
+              widget.isRecording ? 0.55 : 0.22 + (t * 0.20);
           return Transform.scale(
             scale: scale,
             child: Container(
-              width: 76,
-              height: 76,
+              height: 52,
+              margin: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFF5A8AFF), Color(0xFF2F6BFF), Color(0xFF1F4FE0)],
+                  colors: [
+                    Color(0xFF5A8AFF),
+                    Color(0xFF2F6BFF),
+                    Color(0xFF1F4FE0),
+                  ],
                 ),
+                borderRadius: BorderRadius.circular(28),
                 boxShadow: [
                   BoxShadow(
                     color: AppColors.primary.withValues(alpha: glow),
-                    blurRadius: 28,
-                    spreadRadius: 2,
-                    offset: const Offset(0, 8),
+                    blurRadius: 24,
+                    spreadRadius: 1.5,
+                    offset: const Offset(0, 6),
                   ),
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.10),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
-              child: Icon(
-                showSend
-                    ? Icons.arrow_upward_rounded
-                    : (widget.isRecording
-                        ? Icons.stop_rounded
-                        : Icons.mic_rounded),
-                color: Colors.white,
-                size: 32,
+              child: Center(
+                child: Icon(
+                  showSend
+                      ? Icons.arrow_upward_rounded
+                      : (widget.isRecording
+                          ? Icons.stop_rounded
+                          : Icons.mic_rounded),
+                  color: Colors.white,
+                  size: 26,
+                ),
               ),
             ),
           );
@@ -301,8 +306,8 @@ class _InputDockState extends State<InputDock>
     );
   }
 
-  /// Side action — circular blue gradient button matching the mic FAB,
-  /// just smaller. No label — the icon is the affordance.
+  /// Side action — smaller blue gradient circle. Just the icon. The
+  /// pill in the middle is the hero; these are quiet helpers.
   Widget _sideAction({
     required IconData icon,
     required VoidCallback onTap,
@@ -313,8 +318,8 @@ class _InputDockState extends State<InputDock>
         onTap();
       },
       child: Container(
-        width: 56,
-        height: 56,
+        width: 46,
+        height: 46,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: const LinearGradient(
@@ -324,13 +329,13 @@ class _InputDockState extends State<InputDock>
           ),
           boxShadow: [
             BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.30),
-              blurRadius: 16,
-              offset: const Offset(0, 5),
+              color: AppColors.primary.withValues(alpha: 0.25),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: Icon(icon, color: Colors.white, size: 24),
+        child: Icon(icon, color: Colors.white, size: 20),
       ),
     );
   }
