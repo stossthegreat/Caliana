@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/food_entry.dart';
 import '../models/meal_idea.dart';
 import '../models/planned_meal.dart';
@@ -8,6 +9,7 @@ import '../services/day_log_service.dart';
 import '../services/plan_service.dart';
 import '../services/user_profile_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/week_status_strip.dart';
 
 /// Plan tab — Caliana's "what should I eat next so I stay on track?"
 /// answer screen. Three sections in V1:
@@ -24,6 +26,8 @@ class PlanScreen extends StatefulWidget {
 class _PlanScreenState extends State<PlanScreen> {
   bool _generating = false;
   String? _generateError;
+  String _activeMode = 'normal';
+  final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
@@ -52,6 +56,8 @@ class _PlanScreenState extends State<PlanScreen> {
   Widget build(BuildContext context) {
     final tomorrowMeals = PlanService.instance.forDay(_tomorrow);
 
+    final showDamageControl = _shouldShowDamageControl();
+
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FC),
       body: SafeArea(
@@ -60,15 +66,33 @@ class _PlanScreenState extends State<PlanScreen> {
           children: [
             _header(),
             const SizedBox(height: 18),
+            const WeekStatusStrip(),
+            const SizedBox(height: 14),
+            if (showDamageControl) ...[
+              _damageControlCard(),
+              const SizedBox(height: 14),
+            ],
             _tomorrowHeroCard(tomorrowMeals),
-            const SizedBox(height: 16),
-            _weeklyResetCard(),
+            const SizedBox(height: 14),
+            _smartModesSection(),
+            const SizedBox(height: 14),
+            _fridgeRescueCard(),
             const SizedBox(height: 16),
             _upcomingSection(),
           ],
         ),
       ),
     );
+  }
+
+  bool _shouldShowDamageControl() {
+    final profile = UserProfileService.instance.profile;
+    final goal = profile.dailyCalorieGoal;
+    final today = DayLogService.instance.today;
+    final todayDelta = today.totalCalories - goal;
+    final weeklyDelta =
+        DayLogService.instance.weeklyCalories - goal * 7;
+    return todayDelta > 200 || weeklyDelta > 600;
   }
 
   Widget _header() {
@@ -274,49 +298,67 @@ class _PlanScreenState extends State<PlanScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // Weekly Reset
+  // Damage Control — surfaces only when the user is over for today or
+  // the week. Anti-restriction by design: never recommends fasting,
+  // skipping meals, or compensating with exercise. Just calmly offers
+  // the rebuild plan ready to apply.
   // ---------------------------------------------------------------------------
-
-  Widget _weeklyResetCard() {
+  Widget _damageControlCard() {
     final profile = UserProfileService.instance.profile;
     final goal = profile.dailyCalorieGoal;
-    final consumed = DayLogService.instance.weeklyCalories;
-    final weekTarget = goal * 7;
-    final delta = consumed - weekTarget;
+    final today = DayLogService.instance.today;
+    final todayDelta = today.totalCalories - goal;
+    final weeklyDelta =
+        DayLogService.instance.weeklyCalories - goal * 7;
 
-    String headline;
-    String subhead;
-    if (delta <= 0) {
-      headline = 'On track this week';
-      subhead =
-          "You're under by ${(-delta).abs()} kcal across 7 days. Keep doing what you're doing.";
-    } else if (delta < 600) {
-      headline = '${delta} kcal over this week';
-      subhead =
-          "Tight, but absorbable. Light tea two nights and you're square.";
-    } else if (delta < 1500) {
-      headline = '${delta} kcal over this week';
-      final perDay = (delta / 3).round();
-      subhead =
-          "Easy correction. Trim ${perDay} kcal across the next 3 days, no crash.";
+    final String headline;
+    final String body;
+    final String ctaLabel;
+    final String ctaMode;
+
+    if (todayDelta > goal * 0.4) {
+      // Today is gone — protect tomorrow.
+      headline = "Today's gone. Don't crash.";
+      body =
+          "${todayDelta} over goal already. Tomorrow is a clean reset — high protein, normal calories, no punishment. Want me to lay it out?";
+      ctaLabel = 'Plan tomorrow clean';
+      ctaMode = 'recovery';
+    } else if (todayDelta > 200) {
+      // Today is salvageable.
+      final left = goal - today.totalCalories;
+      headline = "Bit over — still salvageable";
+      body =
+          "Slightly over today (${todayDelta} kcal). About ${left.abs()} room before bed if you go light. I can build a small dinner that lands you back.";
+      ctaLabel = 'Build a light dinner';
+      ctaMode = 'recovery';
+    } else if (weeklyDelta > 1500) {
+      headline = "Heavy week — proper rebuild";
+      body =
+          "$weeklyDelta over for the week. Three to four days, protein-led, normal calories. We absorb it — no crash, no shame.";
+      ctaLabel = 'Build the rebuild';
+      ctaMode = 'recovery';
     } else {
-      headline = '${delta} kcal over this week';
-      subhead =
-          "Heavy. Don't crash. Reset over 3-4 days: high-protein, lighter carbs, normal calories.";
+      headline = "Bit over this week — easy fix";
+      final perDay = (weeklyDelta / 3).round();
+      body =
+          "$weeklyDelta over the week. Trim ~$perDay kcal across the next 3 days. Steady, not strict.";
+      ctaLabel = 'Build the next 3 days';
+      ctaMode = 'recovery';
     }
 
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFF1EC), Color(0xFFFFE4DA)],
+        ),
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.06),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        border: Border.all(
+          color: AppColors.accent.withValues(alpha: 0.30),
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -327,19 +369,15 @@ class _PlanScreenState extends State<PlanScreen> {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: delta > 0
-                      ? AppColors.accent.withValues(alpha: 0.12)
-                      : const Color(0xFF22C55E).withValues(alpha: 0.12),
+                  color: AppColors.accent,
                   borderRadius: BorderRadius.circular(50),
                 ),
-                child: Text(
-                  'WEEKLY RESET',
+                child: const Text(
+                  'DAMAGE CONTROL',
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w900,
-                    color: delta > 0
-                        ? AppColors.accent
-                        : const Color(0xFF22C55E),
+                    color: Colors.white,
                     letterSpacing: 1.4,
                   ),
                 ),
@@ -353,27 +391,178 @@ class _PlanScreenState extends State<PlanScreen> {
               fontSize: 20,
               fontWeight: FontWeight.w900,
               color: AppColors.textPrimary,
-              letterSpacing: -0.5,
+              letterSpacing: -0.4,
               height: 1.15,
             ),
           ),
           const SizedBox(height: 6),
           Text(
-            subhead,
+            body,
             style: TextStyle(
               fontSize: 13.5,
               height: 1.4,
-              color: AppColors.textSecondary,
+              color: AppColors.textPrimary.withValues(alpha: 0.78),
               fontWeight: FontWeight.w500,
             ),
           ),
           const SizedBox(height: 14),
-          if (delta > 600)
-            _primaryButton(
-              label: _generating ? 'Building reset…' : 'Build reset week',
-              onTap: _generating ? null : () => _generatePlan(mode: 'recovery'),
-            ),
+          _primaryButton(
+            label: _generating ? 'Building…' : ctaLabel,
+            onTap: _generating ? null : () => _generatePlan(mode: ctaMode),
+          ),
         ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Smart Modes — horizontal carousel of preset plan styles. Tap once,
+  // tomorrow's plan regenerates in that mode.
+  // ---------------------------------------------------------------------------
+  Widget _smartModesSection() {
+    const modes = [
+      _ModeSpec(id: 'normal', label: 'Maintain', emoji: '⚖️',
+          tag: 'Balanced', color: Color(0xFF2F6BFF)),
+      _ModeSpec(id: 'high_protein', label: 'High protein', emoji: '🍗',
+          tag: '30g+ per meal', color: Color(0xFFE94A6F)),
+      _ModeSpec(id: 'recovery', label: 'Recovery', emoji: '🌿',
+          tag: 'Lean reset', color: Color(0xFF22C55E)),
+      _ModeSpec(id: 'cut', label: 'Cut', emoji: '🔥',
+          tag: 'Volume + protein', color: Color(0xFFFF7A45)),
+      _ModeSpec(id: 'cheap', label: 'Budget', emoji: '💷',
+          tag: 'Real food, low spend', color: Color(0xFF8B5CF6)),
+      _ModeSpec(id: 'busy', label: 'Busy', emoji: '⏱️',
+          tag: '<20 min cook', color: Color(0xFF0EA5E9)),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Row(
+            children: [
+              Text(
+                'SMART MODES',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.textHint,
+                  letterSpacing: 1.4,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'one tap, fresh plan',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textHint,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 120,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: modes.length,
+            padding: const EdgeInsets.symmetric(horizontal: 0),
+            itemBuilder: (context, i) {
+              final m = modes[i];
+              return Padding(
+                padding: EdgeInsets.only(
+                  left: i == 0 ? 0 : 8,
+                  right: i == modes.length - 1 ? 0 : 0,
+                ),
+                child: _ModeCard(
+                  spec: m,
+                  active: _activeMode == m.id,
+                  onTap: () => _applyMode(m.id),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Fridge Rescue — large CTA card. Snap or pick a fridge photo and
+  // Caliana proposes meals that use what's in.
+  // ---------------------------------------------------------------------------
+  Widget _fridgeRescueCard() {
+    return GestureDetector(
+      onTap: _onFridgeRescue,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.30),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(
+                Icons.kitchen_rounded,
+                color: Colors.white,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Fridge rescue',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    "Snap what's in. I'll build meals from it that fit today.",
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      height: 1.4,
+                      color: Colors.white.withValues(alpha: 0.72),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.arrow_forward_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -462,6 +651,181 @@ class _PlanScreenState extends State<PlanScreen> {
         _generateError = 'Plan failed: $e';
       });
     }
+  }
+
+  Future<void> _applyMode(String modeId) async {
+    HapticFeedback.lightImpact();
+    setState(() => _activeMode = modeId);
+    await _generatePlan(mode: modeId);
+  }
+
+  Future<void> _onFridgeRescue() async {
+    HapticFeedback.lightImpact();
+    final source = await _pickPhotoSource(
+      title: 'Show me your fridge',
+    );
+    if (source == null) return;
+    final picked = await _imagePicker.pickImage(
+      source: source,
+      imageQuality: 85,
+      maxWidth: 1600,
+    );
+    if (picked == null || !mounted) return;
+
+    setState(() => _generating = true);
+    try {
+      final ideas =
+          await CalianaService.instance.fridgeSuggest(picked.path);
+      if (!mounted) return;
+      if (ideas.isEmpty) {
+        setState(() {
+          _generating = false;
+          _generateError =
+              "Couldn't read the fridge. Try a brighter photo or pick from library.";
+        });
+        return;
+      }
+      // Drop the fridge ideas as the next 3 upcoming meals (today's
+      // dinner / tomorrow lunch / tomorrow dinner). Lightweight; the
+      // user commits whichever they actually cook.
+      final now = DateTime.now();
+      final tomorrow = now.add(const Duration(days: 1));
+      final targets = <(DateTime, String)>[
+        (now, 'dinner'),
+        (tomorrow, 'lunch'),
+        (tomorrow, 'dinner'),
+      ];
+      for (var i = 0; i < ideas.length && i < targets.length; i++) {
+        final (date, slot) = targets[i];
+        final meal = PlannedMeal(
+          id: 'pm_${DateTime.now().millisecondsSinceEpoch}_fridge_$i',
+          date: date,
+          slot: slot,
+          idea: ideas[i],
+        );
+        await PlanService.instance.swapMeal(date, meal);
+      }
+      if (!mounted) return;
+      setState(() {
+        _generating = false;
+        _generateError = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _generating = false;
+        _generateError = 'Fridge failed: $e';
+      });
+    }
+  }
+
+  Future<ImageSource?> _pickPhotoSource({required String title}) async {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceBorder,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _photoSourceTile(
+                  icon: Icons.camera_alt_rounded,
+                  title: 'Take a photo',
+                  onTap: () =>
+                      Navigator.pop(sheetCtx, ImageSource.camera),
+                ),
+                const SizedBox(height: 8),
+                _photoSourceTile(
+                  icon: Icons.photo_library_rounded,
+                  title: 'Choose from library',
+                  onTap: () =>
+                      Navigator.pop(sheetCtx, ImageSource.gallery),
+                ),
+                const SizedBox(height: 4),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _photoSourceTile({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Ink(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.18)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: AppColors.primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded,
+                  color: AppColors.textHint, size: 22),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _swapMeal(PlannedMeal current) async {
@@ -795,6 +1159,114 @@ class _UpcomingRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Smart Mode card spec + widget.
+// ============================================================================
+class _ModeSpec {
+  final String id;
+  final String label;
+  final String emoji;
+  final String tag;
+  final Color color;
+  const _ModeSpec({
+    required this.id,
+    required this.label,
+    required this.emoji,
+    required this.tag,
+    required this.color,
+  });
+}
+
+class _ModeCard extends StatelessWidget {
+  final _ModeSpec spec;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _ModeCard({
+    required this.spec,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        width: 140,
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: active ? spec.color : AppColors.surfaceBorder,
+            width: active ? 1.6 : 1,
+          ),
+          boxShadow: active
+              ? [
+                  BoxShadow(
+                    color: spec.color.withValues(alpha: 0.22),
+                    blurRadius: 18,
+                    offset: const Offset(0, 6),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: spec.color.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Center(
+                child: Text(spec.emoji,
+                    style: const TextStyle(fontSize: 18)),
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  spec.label,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.textPrimary,
+                    letterSpacing: -0.3,
+                    height: 1.15,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  spec.tag,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: spec.color,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

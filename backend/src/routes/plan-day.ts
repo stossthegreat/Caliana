@@ -97,6 +97,10 @@ async function generateDayPlan(
         return 'MODE: cheap week. Eggs, oats, tinned tuna, lentils, frozen veg, mince. Real food, low spend.';
       case 'busy':
         return 'MODE: busy week. <20 min cook time per meal. Sheet pans, one-pan, microwaveable.';
+      case 'cut':
+        return 'MODE: cut week. Higher protein, lower fat, lower-carb-density choices. Volume eating: leafy greens, eggs, lean meat, low-cal noodles. Still sating, still real food, no crash dieting.';
+      case 'maintain':
+        return 'MODE: maintain — balanced macros, varied protein sources, no extremes. Just steady, normal eating.';
       default:
         return 'MODE: normal — balanced, satisfying, varied.';
     }
