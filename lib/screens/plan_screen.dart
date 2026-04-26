@@ -9,6 +9,8 @@ import '../services/day_log_service.dart';
 import '../services/plan_service.dart';
 import '../services/user_profile_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/caliana_avatar.dart';
+import '../widgets/meal_details_sheet.dart';
 import '../widgets/week_status_strip.dart';
 
 /// Plan tab — Caliana's "what should I eat next so I stay on track?"
@@ -66,7 +68,7 @@ class _PlanScreenState extends State<PlanScreen> {
           children: [
             _header(),
             const SizedBox(height: 18),
-            const WeekStatusStrip(),
+            WeekStatusStrip(onDayTap: _showDayDetails),
             const SizedBox(height: 14),
             if (showDamageControl) ...[
               _damageControlCard(),
@@ -85,6 +87,184 @@ class _PlanScreenState extends State<PlanScreen> {
     );
   }
 
+  Future<void> _showDayDetails(DateTime day) async {
+    HapticFeedback.lightImpact();
+    final log = DayLogService.instance.forDay(day);
+    final planned = PlanService.instance.forDay(day);
+    final profile = UserProfileService.instance.profile;
+    final consumed = log.totalCalories;
+    final goal = profile.dailyCalorieGoal;
+
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetCtx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (_, controller) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: ListView(
+            controller: controller,
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceBorder,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                _formatLongDate(day),
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.textPrimary,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                consumed > 0
+                    ? '$consumed kcal logged · target $goal'
+                    : 'Nothing logged · target $goal',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (log.entries.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                _miniHeader('LOGGED'),
+                const SizedBox(height: 6),
+                for (final e in log.entries)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: _dayDetailRow(e.name, '${e.calories} kcal',
+                        AppColors.primary),
+                  ),
+              ],
+              if (planned.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                _miniHeader('PLANNED'),
+                const SizedBox(height: 6),
+                for (final m in planned)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: _dayDetailRow(
+                      '${slotLabel(m.slot)} · ${m.idea.name}',
+                      '${m.idea.calories} kcal',
+                      m.committed
+                          ? const Color(0xFF22C55E)
+                          : AppColors.textSecondary,
+                    ),
+                  ),
+              ],
+              if (log.entries.isEmpty && planned.isEmpty) ...[
+                const SizedBox(height: 24),
+                Text(
+                  "Nothing yet for this day. Tap 'Use this plan' or log a meal from Today.",
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    height: 1.5,
+                    color: AppColors.textHint,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatLongDate(DateTime d) {
+    const wd = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+    const mo = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${wd[(d.weekday - 1) % 7]}, ${d.day} ${mo[d.month - 1]}';
+  }
+
+  Widget _miniHeader(String label) {
+    return Text(
+      label,
+      style: TextStyle(
+        fontSize: 10.5,
+        fontWeight: FontWeight.w900,
+        color: AppColors.textHint,
+        letterSpacing: 1.4,
+      ),
+    );
+  }
+
+  Widget _dayDetailRow(String name, String trailing, Color trailingColor) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6F8FE),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+                letterSpacing: -0.1,
+              ),
+            ),
+          ),
+          Text(
+            trailing,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w800,
+              color: trailingColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   bool _shouldShowDamageControl() {
     final profile = UserProfileService.instance.profile;
     final goal = profile.dailyCalorieGoal;
@@ -97,8 +277,10 @@ class _PlanScreenState extends State<PlanScreen> {
 
   Widget _header() {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        const CalianaAvatar(size: 44),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -113,11 +295,11 @@ class _PlanScreenState extends State<PlanScreen> {
                   height: 1,
                 ),
               ),
-              SizedBox(height: 4),
+              SizedBox(height: 2),
               Text(
-                "What's next, sorted in advance.",
+                "Live the day. I'll handle the calories.",
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: FontWeight.w500,
                   color: AppColors.textSecondary,
                   letterSpacing: -0.1,
@@ -211,13 +393,29 @@ class _PlanScreenState extends State<PlanScreen> {
                         color: Colors.white.withValues(alpha: 0.20),
                         borderRadius: BorderRadius.circular(50),
                       ),
-                      child: const Text(
-                        'Regenerate',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_generating) ...[
+                            const SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.6,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          Text(
+                            _generating ? 'Building…' : 'Regenerate',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -288,6 +486,7 @@ class _PlanScreenState extends State<PlanScreen> {
               padding: const EdgeInsets.symmetric(vertical: 5),
               child: _PlanMealRow(
                 planned: m,
+                onTap: () => _openMealDetails(m),
                 onSwap: () => _swapMeal(m),
                 onDelete: () => _deleteMeal(m),
               ),
@@ -609,6 +808,11 @@ class _PlanScreenState extends State<PlanScreen> {
   // Actions
   // ---------------------------------------------------------------------------
 
+  /// Auto-recovery aware plan generator. When today is over budget,
+  /// the override is goal − overage so tomorrow absorbs the spillover;
+  /// the delta is also passed so the model knows it's a rebalance and
+  /// won't double-cut. Floor-clamped at 1200 kcal in the backend so
+  /// "I had a 3000 kcal night out" never becomes a starvation plan.
   Future<void> _generatePlan({String mode = 'normal'}) async {
     HapticFeedback.mediumImpact();
     setState(() {
@@ -616,8 +820,25 @@ class _PlanScreenState extends State<PlanScreen> {
       _generateError = null;
     });
     try {
-      final ideas =
-          await CalianaService.instance.generateDayPlan(mode: mode);
+      int? overrideKcal;
+      int absorbing = 0;
+      final isRecovery = mode == 'recovery';
+      if (isRecovery) {
+        final profile = UserProfileService.instance.profile;
+        final today = DayLogService.instance.today;
+        final todayDelta = today.totalCalories - profile.dailyCalorieGoal;
+        if (todayDelta > 100) {
+          // Absorb the today overage into tomorrow's plan target.
+          overrideKcal = profile.dailyCalorieGoal - todayDelta;
+          absorbing = todayDelta;
+        }
+      }
+
+      final ideas = await CalianaService.instance.generateDayPlan(
+        mode: mode,
+        targetKcalOverride: overrideKcal,
+        absorbingDeltaKcal: absorbing,
+      );
       if (!mounted) return;
       if (ideas.isEmpty) {
         setState(() {
@@ -644,6 +865,20 @@ class _PlanScreenState extends State<PlanScreen> {
         _generating = false;
         _generateError = null;
       });
+      // After a recovery rebuild, surface a brief reassurance so the
+      // user sees the agent acknowledge the overage and the absorption.
+      if (isRecovery && absorbing > 0) {
+        final messenger = ScaffoldMessenger.maybeOf(context);
+        messenger?.showSnackBar(SnackBar(
+          backgroundColor: const Color(0xFF0F172A),
+          duration: const Duration(seconds: 4),
+          content: Text(
+            "Adjustments made. Tomorrow absorbs ${absorbing} kcal — no drama.",
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w600),
+          ),
+        ));
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -846,6 +1081,20 @@ class _PlanScreenState extends State<PlanScreen> {
     await PlanService.instance.deleteMeal(m.date, m.id);
   }
 
+  Future<void> _openMealDetails(PlannedMeal m) async {
+    HapticFeedback.lightImpact();
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => MealDetailsSheet(
+        idea: m.idea,
+        slotLabel: slotLabel(m.slot),
+        onCommit: () => _commitMeal(m),
+      ),
+    );
+  }
+
   Future<void> _commitMeal(PlannedMeal m) async {
     HapticFeedback.mediumImpact();
     final entry = FoodEntry(
@@ -919,11 +1168,13 @@ class _PlanScreenState extends State<PlanScreen> {
 // ============================================================================
 class _PlanMealRow extends StatelessWidget {
   final PlannedMeal planned;
+  final VoidCallback onTap;
   final VoidCallback onSwap;
   final VoidCallback onDelete;
 
   const _PlanMealRow({
     required this.planned,
+    required this.onTap,
     required this.onSwap,
     required this.onDelete,
   });
@@ -931,13 +1182,18 @@ class _PlanMealRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final idea = planned.idea;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF6F8FE),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF6F8FE),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           ClipRRect(
@@ -1013,7 +1269,8 @@ class _PlanMealRow extends StatelessWidget {
               color: AppColors.textHint,
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }

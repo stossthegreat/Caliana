@@ -11,8 +11,15 @@ interface PlanRequest {
   userContext?: string;
   /** Tone preference — 'soft' / 'cheeky' / 'savage'. Influences blurb. */
   tone?: 'polite' | 'cheeky' | 'savage';
-  /** Mode hint — 'normal' | 'recovery' | 'high_protein' | 'cheap' | 'busy'. */
+  /** Mode hint — 'normal' | 'recovery' | 'high_protein' | 'cheap' | 'busy' | 'cut' | 'maintain'. */
   mode?: string;
+  /** Override the per-day kcal target (e.g. dailyGoal - todayOverage to
+   *  absorb a previous day's spillover across the plan). When set, the
+   *  plan distributes against this number instead of dailyCalorieGoal. */
+  targetKcalOverride?: number;
+  /** Number of kcal yesterday/today went over goal — surfaces in the
+   *  rebalance reasoning so the plan explicitly absorbs it. */
+  absorbingDeltaKcal?: number;
 }
 
 interface PlannedSlot {
@@ -45,6 +52,8 @@ export async function registerPlanDayRoute(
       dailyProteinGoal,
       userContext,
       mode,
+      targetKcalOverride,
+      absorbingDeltaKcal,
     } = req.body || ({} as PlanRequest);
 
     if (!dailyCalorieGoal || dailyCalorieGoal < 600) {
@@ -53,14 +62,31 @@ export async function registerPlanDayRoute(
         .send({ error: 'dailyCalorieGoal is required (>= 600)' });
     }
 
+    // Resolve the actual kcal target for distribution. Clamp to a safe
+    // floor (1200) so a big overage never produces a starvation plan.
+    const resolvedTarget = (() => {
+      if (
+        typeof targetKcalOverride === 'number' &&
+        targetKcalOverride >= 600
+      ) {
+        return Math.max(1200, Math.round(targetKcalOverride));
+      }
+      return dailyCalorieGoal;
+    })();
+
     try {
       const slots = await generateDayPlan(
-        dailyCalorieGoal,
+        resolvedTarget,
         dailyProteinGoal,
         userContext,
         mode,
+        absorbingDeltaKcal,
       );
-      return { slots };
+      return {
+        slots,
+        targetKcal: resolvedTarget,
+        absorbingDeltaKcal: absorbingDeltaKcal ?? 0,
+      };
     } catch (err) {
       req.log.error({ err }, 'plan-day failed');
       return reply.status(500).send({
@@ -76,6 +102,7 @@ async function generateDayPlan(
   dailyProteinGoal: number | undefined,
   userContext: string | undefined,
   mode: string | undefined,
+  absorbingDeltaKcal: number | undefined,
 ): Promise<PlannedSlot[]> {
   // Distribute the daily kcal across slots: 25 / 35 / 30 / 10.
   const breakfastTarget = Math.round(dailyCalorieGoal * 0.25);
@@ -106,9 +133,15 @@ async function generateDayPlan(
     }
   })();
 
+  const rebalanceLine =
+    absorbingDeltaKcal && absorbingDeltaKcal > 0
+      ? `REBALANCE: this plan absorbs ${absorbingDeltaKcal} kcal of overage from a prior day. The kcal target above (${dailyCalorieGoal}) is ALREADY adjusted for that. Do not cut further. Aim filling, satiating meals so the lower number doesn't trigger hunger spirals.`
+      : '';
+
   const system = `You are CALIANA, a British nutritionist. Generate ONE day of meals — breakfast, lunch, dinner, snack — that hit the user's targets and sound like food a real adult would actually eat.
 
 ${modeLine}
+${rebalanceLine}
 
 OUTPUT — JSON only, exactly this shape:
 {

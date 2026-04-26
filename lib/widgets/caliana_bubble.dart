@@ -18,6 +18,7 @@ class CalianaBubble extends StatelessWidget {
   final VoidCallback? onLongPress;
   final VoidCallback? onTap;
   final VoidCallback? onPlayVoice;
+  final ValueChanged<MealIdea>? onCommitMeal;
 
   const CalianaBubble({
     super.key,
@@ -26,6 +27,7 @@ class CalianaBubble extends StatelessWidget {
     this.onLongPress,
     this.onTap,
     this.onPlayVoice,
+    this.onCommitMeal,
   });
 
   @override
@@ -67,7 +69,12 @@ class CalianaBubble extends StatelessWidget {
                 ...message.mealIdeas
                     .map((idea) => Padding(
                           padding: const EdgeInsets.only(bottom: 8),
-                          child: _RecipeCard(idea: idea),
+                          child: _RecipeCard(
+                            idea: idea,
+                            onCommit: onCommitMeal == null
+                                ? null
+                                : () => onCommitMeal!(idea),
+                          ),
                         ))
                     ,
               ],
@@ -79,74 +86,68 @@ class CalianaBubble extends StatelessWidget {
     );
   }
 
+  /// Caliana's reply renders as plain black text on the chat surface
+  /// (no card, no border) — ChatGPT/Claude style — so her voice reads
+  /// like the agent talking to you, not yet another labelled bubble.
+  /// Action chips sit just under the text; user messages stay as dark
+  /// cards so the side-of-conversation is still obvious.
   Widget _calianaBubble() {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.fromLTRB(0, 8, 0, 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _SpeakingAvatar(key: ValueKey('avatar_${message.id}')),
-          const SizedBox(width: 8),
-          Flexible(
+          const SizedBox(width: 10),
+          Expanded(
             child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onLongPress: () {
                 HapticFeedback.mediumImpact();
                 onLongPress?.call();
               },
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-                decoration: BoxDecoration(
-                  color: AppColors.primarySoft,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(4),
-                    topRight: Radius.circular(16),
-                    bottomLeft: Radius.circular(16),
-                    bottomRight: Radius.circular(16),
-                  ),
-                  border: Border.all(
-                    color: AppColors.primary.withValues(alpha: 0.18),
-                    width: 1,
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
                       message.text,
                       style: const TextStyle(
-                        fontSize: 14.5,
-                        height: 1.35,
+                        fontSize: 15,
+                        height: 1.45,
                         color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: -0.1,
                       ),
                     ),
-                    if (message.actionChips.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: message.actionChips
-                            .map((label) => _ActionChip(
-                                  label: label,
-                                  onTap: () {
-                                    HapticFeedback.lightImpact();
-                                    onChipTap?.call(label);
-                                  },
-                                ))
-                            .toList(),
-                      ),
-                    ],
-                    if (message.audioPath != null) ...[
-                      const SizedBox(height: 6),
-                      _voiceButton(),
-                    ],
+                  ),
+                  if (message.actionChips.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: message.actionChips
+                          .map((label) => _ActionChip(
+                                label: label,
+                                onTap: () {
+                                  HapticFeedback.lightImpact();
+                                  onChipTap?.call(label);
+                                },
+                              ))
+                          .toList(),
+                    ),
                   ],
-                ),
+                  if (message.audioPath != null) ...[
+                    const SizedBox(height: 6),
+                    _voiceButton(),
+                  ],
+                ],
               ),
             ),
           ),
-          const SizedBox(width: 36),
+          const SizedBox(width: 12),
         ],
       ),
     );
@@ -635,7 +636,8 @@ class _SpeakingAvatarState extends State<_SpeakingAvatar>
 /// a slimmer text card.
 class _RecipeCard extends StatefulWidget {
   final MealIdea idea;
-  const _RecipeCard({required this.idea});
+  final VoidCallback? onCommit;
+  const _RecipeCard({required this.idea, this.onCommit});
 
   @override
   State<_RecipeCard> createState() => _RecipeCardState();
@@ -732,6 +734,12 @@ class _RecipeCardState extends State<_RecipeCard> {
                     ],
                     if (idea.link != null && idea.link!.isNotEmpty)
                       _openRecipeButton(idea),
+                  ],
+                  // Always-visible commit button so the user can fire
+                  // "I ate this" without expanding the card.
+                  if (widget.onCommit != null) ...[
+                    const SizedBox(height: 10),
+                    _commitButton(),
                   ],
                 ],
               ),
@@ -1053,6 +1061,45 @@ class _RecipeCardState extends State<_RecipeCard> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _commitButton() {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.mediumImpact();
+        widget.onCommit?.call();
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF5A8AFF), Color(0xFF2F6BFF)],
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.30),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: const Center(
+          child: Text(
+            'I ate this',
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: -0.2,
+            ),
+          ),
+        ),
       ),
     );
   }
