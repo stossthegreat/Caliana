@@ -193,20 +193,26 @@ class CalianaBubble extends StatelessWidget {
     );
   }
 
+  /// Clean food log card. Photo as hero (160pt) when present, then a
+  /// tight info strip: name + big kcal on one line, three colour-dot
+  /// macros on the next, "Tap to edit" at the bottom. No tile boxes.
   Widget _foodLogCard() {
     final entry = message.foodEntry!;
+    final hasPhoto =
+        entry.photoPath != null && entry.photoPath!.isNotEmpty;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Dismissible(
         key: ValueKey(entry.id),
         direction: DismissDirection.endToStart,
         background: Container(
-          margin: const EdgeInsets.only(left: 28),
+          margin: const EdgeInsets.only(left: 16),
           padding: const EdgeInsets.symmetric(horizontal: 22),
           alignment: Alignment.centerRight,
           decoration: BoxDecoration(
             color: AppColors.accent.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(22),
           ),
           child: const Icon(
             Icons.delete_outline_rounded,
@@ -220,7 +226,7 @@ class CalianaBubble extends StatelessWidget {
         },
         child: Row(
           children: [
-            const SizedBox(width: 28),
+            const SizedBox(width: 16),
             Expanded(
               child: GestureDetector(
                 onTap: () {
@@ -230,17 +236,15 @@ class CalianaBubble extends StatelessWidget {
                 child: Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: AppColors.surfaceBorder, width: 1),
+                    borderRadius: BorderRadius.circular(22),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.06),
-                        blurRadius: 18,
-                        offset: const Offset(0, 6),
+                        color: AppColors.primary.withValues(alpha: 0.07),
+                        blurRadius: 22,
+                        offset: const Offset(0, 8),
                       ),
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
+                        color: Colors.black.withValues(alpha: 0.04),
                         blurRadius: 4,
                         offset: const Offset(0, 1),
                       ),
@@ -251,103 +255,65 @@ class CalianaBubble extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (entry.photoPath != null &&
-                          entry.photoPath!.isNotEmpty)
-                        _photoHero(entry.photoPath!),
+                      if (hasPhoto) _photoHero(entry.photoPath!),
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+                        padding: EdgeInsets.fromLTRB(
+                            18, hasPhoto ? 14 : 18, 18, 16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            // Name + big calorie pair on one line.
                             Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                _methodTag(entry.inputMethod),
-                                const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     entry.name,
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
-                                      fontSize: 16,
+                                      fontSize: 17,
                                       fontWeight: FontWeight.w900,
                                       color: AppColors.textPrimary,
-                                      letterSpacing: -0.3,
+                                      letterSpacing: -0.4,
                                       height: 1.2,
                                     ),
                                   ),
                                 ),
-                                Icon(
-                                  Icons.edit_rounded,
-                                  size: 14,
-                                  color: AppColors.textHint,
-                                ),
+                                const SizedBox(width: 10),
+                                _kcalBlock(entry.calories),
                               ],
                             ),
-                            const SizedBox(height: 14),
-                            // Calorie number is the hero — big, tabular,
-                            // brand-blue. Same scale Cal AI / Pingo lead with.
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.baseline,
-                              textBaseline: TextBaseline.alphabetic,
+                            const SizedBox(height: 12),
+                            // Single inline macro row with coloured dots
+                            // — clean, premium, no tile boxes.
+                            Wrap(
+                              spacing: 14,
+                              runSpacing: 6,
                               children: [
-                                Text(
-                                  '${entry.calories}',
-                                  style: const TextStyle(
-                                    fontSize: 36,
-                                    fontWeight: FontWeight.w900,
-                                    color: AppColors.primary,
-                                    letterSpacing: -1.2,
-                                    height: 1,
-                                    fontFeatures: [
-                                      FontFeature.tabularFigures()
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 5),
-                                Text(
-                                  'kcal',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.textSecondary,
-                                    letterSpacing: -0.1,
-                                  ),
-                                ),
+                                _macroDot(
+                                    'P', entry.proteinGrams,
+                                    AppColors.macroProtein),
+                                _macroDot(
+                                    'C', entry.carbsGrams,
+                                    AppColors.macroCarbs),
+                                _macroDot(
+                                    'F', entry.fatGrams,
+                                    AppColors.macroFat),
+                              ],
+                            ),
+                            // Footer strip: method tag + tap hint /
+                            // confidence on the right.
+                            const SizedBox(height: 14),
+                            Row(
+                              children: [
+                                _methodTag(entry.inputMethod),
                                 const Spacer(),
                                 if (_confidenceLabel(entry.confidence) != null)
-                                  _confidenceChip(entry.confidence),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-                            // Three macro tiles, equally spaced. Bigger,
-                            // visually distinct, tinted per macro colour.
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _macroTile(
-                                    'Protein',
-                                    entry.proteinGrams,
-                                    AppColors.macroProtein,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: _macroTile(
-                                    'Carbs',
-                                    entry.carbsGrams,
-                                    AppColors.macroCarbs,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: _macroTile(
-                                    'Fat',
-                                    entry.fatGrams,
-                                    AppColors.macroFat,
-                                  ),
-                                ),
+                                  _confidenceChip(entry.confidence)
+                                else
+                                  _editHint(),
                               ],
                             ),
                           ],
@@ -361,6 +327,100 @@ class CalianaBubble extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _kcalBlock(int kcal) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Text(
+          '$kcal',
+          style: const TextStyle(
+            fontSize: 32,
+            fontWeight: FontWeight.w900,
+            color: AppColors.primary,
+            letterSpacing: -1,
+            height: 1,
+            fontFeatures: [FontFeature.tabularFigures()],
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          'kcal',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: AppColors.primary.withValues(alpha: 0.55),
+            letterSpacing: -0.1,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _macroDot(String label, int grams, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        RichText(
+          text: TextSpan(
+            children: [
+              TextSpan(
+                text: '$grams',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.textPrimary,
+                  letterSpacing: -0.2,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+              const TextSpan(text: ' '),
+              TextSpan(
+                text: 'g $label',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textHint,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _editHint() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.edit_rounded,
+          size: 11,
+          color: AppColors.textHint,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          'Tap to edit',
+          style: TextStyle(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textHint,
+            letterSpacing: 0.2,
+          ),
+        ),
+      ],
     );
   }
 
@@ -422,57 +482,6 @@ class CalianaBubble extends StatelessWidget {
     );
   }
 
-  Widget _macroTile(String label, int grams, Color color) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 9, 10, 10),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w900,
-              color: color,
-              letterSpacing: 1.0,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                '$grams',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.textPrimary,
-                  letterSpacing: -0.4,
-                  height: 1,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-              const SizedBox(width: 2),
-              Text(
-                'g',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textHint,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
   String? _confidenceLabel(String c) {
     switch (c) {
