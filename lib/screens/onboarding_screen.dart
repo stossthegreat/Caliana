@@ -294,12 +294,6 @@ class _WelcomeState extends State<_Welcome> {
     }
   }
 
-  Future<void> _replay() async {
-    HapticFeedback.lightImpact();
-    _played = false;
-    await _play();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -345,57 +339,6 @@ class _WelcomeState extends State<_Welcome> {
               height: 1.45,
               color: AppColors.textPrimary,
               fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 22),
-          GestureDetector(
-            onTap: _replay,
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(50),
-                border: Border.all(
-                  color: AppColors.primary.withValues(alpha: 0.25),
-                  width: 1.2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.10),
-                    blurRadius: 18,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 22,
-                    height: 22,
-                    decoration: const BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.play_arrow_rounded,
-                      size: 14,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Hear Caliana',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.primary,
-                      letterSpacing: -0.1,
-                    ),
-                  ),
-                ],
-              ),
             ),
           ),
           const Spacer(flex: 3),
