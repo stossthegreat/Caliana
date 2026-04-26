@@ -229,6 +229,27 @@ class _TodayScreenState extends State<TodayScreen> {
     }
   }
 
+  // Surface a snackbar when a food-log call fails. Stops the silent
+  // "350 kcal Caesar salad" fake estimate from before — now the user
+  // sees clearly that the photo / text didn't go through.
+  void _showFoodLogError() {
+    if (!mounted) return;
+    final err = CalianaService.instance.lastFoodLogError;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    messenger.showSnackBar(
+      SnackBar(
+        backgroundColor: const Color(0xFF0F172A),
+        duration: const Duration(seconds: 4),
+        content: Text(
+          err ?? 'Caliana couldn\'t analyse that — try again.',
+          style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+
   void _maybeShowVoiceErrorSnackbar() {
     if (_voiceErrorShown || !mounted) return;
     _voiceErrorShown = true;
@@ -852,6 +873,8 @@ class _TodayScreenState extends State<TodayScreen> {
             foodEntry: entry,
           ),
         );
+      } else {
+        _showFoodLogError();
       }
     }
 
@@ -1294,6 +1317,8 @@ class _TodayScreenState extends State<TodayScreen> {
           foodEntry: entry,
         ),
       );
+    } else {
+      _showFoodLogError();
     }
     final reply = await CalianaService.instance.chat(
       entry == null
@@ -1381,6 +1406,8 @@ class _TodayScreenState extends State<TodayScreen> {
               foodEntry: entry,
             ),
           );
+        } else {
+          _showFoodLogError();
         }
       }
       final reply = await CalianaService.instance.chat(text);

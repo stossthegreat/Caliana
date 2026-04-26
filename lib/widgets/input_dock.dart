@@ -115,23 +115,33 @@ class _InputDockState extends State<InputDock>
                       )
                     : const SizedBox.shrink(),
               ),
-              // Action row — left fridge | centre voice pill | right camera.
-              // Pill is the hero, side icons sit at the edges with breathing
-              // room (not glued to the pill). Whole row is shorter than the
-              // old 64pt-tall pill so the dock stops eating screen.
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  _sideAction(
-                    icon: Icons.kitchen_rounded,
-                    onTap: widget.onFridge,
-                  ),
-                  Expanded(child: _voicePill()),
-                  _sideAction(
-                    icon: Icons.camera_alt_rounded,
-                    onTap: widget.onCamera,
-                  ),
-                ],
+              // Action row — fridge stays at the left edge, camera at
+              // the right edge. The voice pill sits in the middle but
+              // only takes ~half the row width — flanked by Spacers
+              // instead of Expanded so it never eats the whole bar.
+              // Slight upward offset on the pill so it reads as
+              // elevated above the side icons ("press me").
+              SizedBox(
+                height: 60,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    _sideAction(
+                      icon: Icons.kitchen_rounded,
+                      onTap: widget.onFridge,
+                    ),
+                    const Spacer(),
+                    Transform.translate(
+                      offset: const Offset(0, -6),
+                      child: _voicePill(),
+                    ),
+                    const Spacer(),
+                    _sideAction(
+                      icon: Icons.camera_alt_rounded,
+                      onTap: widget.onCamera,
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -261,8 +271,8 @@ class _InputDockState extends State<InputDock>
           return Transform.scale(
             scale: scale,
             child: Container(
-              height: 52,
-              margin: const EdgeInsets.symmetric(horizontal: 12),
+              height: 54,
+              width: 168,
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
