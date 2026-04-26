@@ -1206,42 +1206,117 @@ class _SocialProof extends StatelessWidget {
 }
 
 // ============================================================================
-// SCREEN 10 — Soft paywall
+// SCREEN 10 — Soft paywall (the gift)
 // ============================================================================
-class _SoftPaywall extends StatelessWidget {
+class _SoftPaywall extends StatefulWidget {
   final VoidCallback onContinueFree;
   final VoidCallback onSubscribe;
 
   const _SoftPaywall({required this.onContinueFree, required this.onSubscribe});
 
   @override
+  State<_SoftPaywall> createState() => _SoftPaywallState();
+}
+
+class _SoftPaywallState extends State<_SoftPaywall>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  static const _giftBlue = Color(0xFF2F6BFF);
+  static const _giftBlueLight = Color(0xFF5A8AFF);
+
+  @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+      physics: const BouncingScrollPhysics(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _Title('Try Caliana Pro'),
-          const _Subtitle(
-              'Unlimited everything. Annual: 7 days free, cancel any time.'),
+          // Gift hero — no grey, no emoji.
+          Center(
+            child: Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [_giftBlueLight, _giftBlue],
+                ),
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: _giftBlue.withValues(alpha: 0.35),
+                    blurRadius: 28,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.card_giftcard_rounded,
+                color: Colors.white,
+                size: 48,
+              ),
+            ),
+          ),
           const SizedBox(height: 22),
-          _feature('🤳', 'Unlimited photo logging',
-              'Free tier caps at 1 photo a day'),
-          _feature('🗣️', 'Voice replies (ElevenLabs)',
-              'Hear Caliana out loud'),
-          _feature('📅', 'Multi-day rebuild plans',
-              'Go over today, she fixes tomorrow'),
-          _feature('🎨', 'Sunday recap share-card',
-              'Caliana wrap, exportable'),
-          const Spacer(),
+          const Text(
+            'A gift from Caliana.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w900,
+              color: AppColors.textPrimary,
+              letterSpacing: -1.2,
+              height: 1.05,
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            '3 days of full access. Properly free —\nno card, no catch, no nonsense.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+              height: 1.45,
+              letterSpacing: -0.1,
+            ),
+          ),
+          const SizedBox(height: 26),
+          _animatedRow(0, Icons.camera_alt_rounded,
+              'Snap anything', 'She works out the calories.'),
+          _animatedRow(1, Icons.graphic_eq_rounded,
+              'Hear her voice', 'British, sharp, on demand.'),
+          _animatedRow(2, Icons.auto_awesome_rounded,
+              'She fixes bad days', 'Tomorrow rebuilds itself.'),
+          _animatedRow(3, Icons.restaurant_rounded,
+              'Real recipes', 'From the world\'s kitchens, scaled to your day.'),
+          const SizedBox(height: 28),
           _PrimaryButton(
-            label: 'See plans',
+            label: 'Claim my 3 days',
             onTap: () async {
-              HapticFeedback.lightImpact();
-              // Open the real paywall so the user sees live store
-              // prices (annual w/ 7-day trial, monthly no trial) and
-              // the proper legal disclosure. Whether they buy or not,
-              // we finish onboarding when the paywall pops.
+              HapticFeedback.mediumImpact();
+              // Push the real paywall so live store prices show. The
+              // gift trial is already running locally regardless of
+              // what they pick — so finishing onboarding either way
+              // is fine.
               final purchased = await Navigator.of(context).push<bool>(
                 MaterialPageRoute(
                   builder: (_) =>
@@ -1251,21 +1326,23 @@ class _SoftPaywall extends StatelessWidget {
               if (purchased == true) {
                 await UsageService.instance.setPro(true);
               }
-              onSubscribe();
+              widget.onSubscribe();
             },
           ),
-          const SizedBox(height: 8),
-          GestureDetector(
-            onTap: onContinueFree,
-            child: Center(
+          const SizedBox(height: 10),
+          Center(
+            child: GestureDetector(
+              onTap: widget.onContinueFree,
               child: Padding(
-                padding: const EdgeInsets.all(8.0),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 10),
                 child: Text(
-                  'Continue with the free tier',
+                  'Just take me in',
                   style: TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textHint,
-                    decoration: TextDecoration.underline,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                    letterSpacing: -0.1,
                   ),
                 ),
               ),
@@ -1276,13 +1353,53 @@ class _SoftPaywall extends StatelessWidget {
     );
   }
 
-  Widget _feature(String emoji, String title, String sub) {
+  Widget _animatedRow(int i, IconData icon, String title, String sub) {
+    final start = (i * 0.12).clamp(0.0, 1.0);
+    final end = (start + 0.55).clamp(0.0, 1.0);
+    final t = CurvedAnimation(
+      parent: _ctrl,
+      curve: Interval(start, end, curve: Curves.easeOutCubic),
+    );
+    return AnimatedBuilder(
+      animation: t,
+      builder: (_, __) {
+        return Opacity(
+          opacity: t.value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - t.value) * 14),
+            child: _featureRow(icon, title, sub),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _featureRow(IconData icon, String title, String sub) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 9),
       child: Row(
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 22)),
-          const SizedBox(width: 12),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [_giftBlueLight, _giftBlue],
+              ),
+              borderRadius: BorderRadius.circular(13),
+              boxShadow: [
+                BoxShadow(
+                  color: _giftBlue.withValues(alpha: 0.22),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: Colors.white, size: 22),
+          ),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1291,15 +1408,19 @@ class _SoftPaywall extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     fontSize: 15,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                     color: AppColors.textPrimary,
+                    letterSpacing: -0.2,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   sub,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textHint,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
+                    height: 1.35,
                   ),
                 ),
               ],

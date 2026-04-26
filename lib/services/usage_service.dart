@@ -3,16 +3,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Free-tier gating for Caliana.
 ///
-/// Free tier:
-///   - 1 PHOTO analysis per day (the wow moment)
-///   - Unlimited text/voice/barcode logging
-///   - Unlimited chat with Caliana
+/// Caliana ships a 3-day "gift trial" — every new user gets full
+/// unlimited access for 72 hours from first launch. After that the
+/// paywall opens on any premium action (snap, voice, multi-day plan,
+/// recap export). Pro subscribers (RevenueCat `pro` entitlement) skip
+/// the gate entirely.
 ///
-/// Pro tier:
-///   - Unlimited photos
-///   - Voice replies (ElevenLabs)
-///   - Sunday recap share-card export
-///   - Multi-day rebuild plans
+/// Per-day free-tier photo cap kept as a safety belt for users who
+/// dismiss the paywall and stay on the trial-expired free tier — they
+/// still get 1 photo a day so the app isn't a black hole.
 class UsageService extends ChangeNotifier {
   UsageService._();
   static final UsageService _instance = UsageService._();
@@ -23,15 +22,21 @@ class UsageService extends ChangeNotifier {
   static const _isProKey = 'caliana_is_pro';
   static const _hasRatedKey = 'caliana_has_rated';
   static const _totalPhotosKey = 'caliana_total_photos';
+  static const _firstLaunchKey = 'caliana_first_launch_iso_v1';
 
-  /// Free users get 1 photo analysis per calendar day.
+  /// Free users get 1 photo analysis per calendar day after the trial.
   static const int dailyFreePhotos = 1;
+
+  /// Every user gets this many days of full unlimited access from
+  /// first app launch — Caliana's "gift trial".
+  static const int giftTrialDays = 3;
 
   int _photosToday = 0;
   String _photosTodayDate = '';
   bool _isPro = false;
   bool _hasRated = false;
   int _totalPhotos = 0;
+  DateTime? _firstLaunch;
 
   bool _loaded = false;
   bool get loaded => _loaded;
@@ -39,23 +44,49 @@ class UsageService extends ChangeNotifier {
   // ---- public getters ----
 
   bool get isPro => _isPro;
+
+  /// True for the first [giftTrialDays] after first app launch.
+  /// Treats the user as if they have Pro for unlimited access.
+  bool get isInGiftTrial {
+    if (_firstLaunch == null) return true; // brand-new user, treat as in trial
+    final cutoff =
+        _firstLaunch!.add(const Duration(days: giftTrialDays));
+    return DateTime.now().isBefore(cutoff);
+  }
+
+  /// 0 when the trial has ended, otherwise the rounded-up days left
+  /// so the UI can say "1 day left".
+  int get giftTrialDaysLeft {
+    if (_firstLaunch == null) return giftTrialDays;
+    final cutoff =
+        _firstLaunch!.add(const Duration(days: giftTrialDays));
+    final now = DateTime.now();
+    if (!now.isBefore(cutoff)) return 0;
+    final hoursLeft = cutoff.difference(now).inHours;
+    return (hoursLeft / 24).ceil().clamp(0, giftTrialDays);
+  }
+
+  /// True when the user has full premium-feature access — either via
+  /// Pro subscription OR the gift trial window.
+  bool get hasPremiumAccess => isPro || isInGiftTrial;
+
   int get photosUsedToday {
     _rolloverIfNeeded();
     return _photosToday;
   }
 
   int get photosRemainingToday {
-    if (isPro) return 999;
+    if (hasPremiumAccess) return 999;
     _rolloverIfNeeded();
     return (dailyFreePhotos - _photosToday).clamp(0, dailyFreePhotos);
   }
 
   bool get canSnapPhoto =>
-      isPro || photosRemainingToday > 0;
+      hasPremiumAccess || photosRemainingToday > 0;
 
-  bool get canVoiceReply => isPro;
-  bool get canShareRecap => isPro;
-  bool get canMultiDayPlan => isPro;
+  bool get canVoiceReply => hasPremiumAccess;
+  bool get canShareRecap => hasPremiumAccess;
+  bool get canMultiDayPlan => hasPremiumAccess;
 
   int get totalPhotos => _totalPhotos;
   bool get hasRated => _hasRated;
@@ -74,6 +105,18 @@ class UsageService extends ChangeNotifier {
       _isPro = prefs.getBool(_isProKey) ?? false;
       _hasRated = prefs.getBool(_hasRatedKey) ?? false;
       _totalPhotos = prefs.getInt(_totalPhotosKey) ?? 0;
+      // Stamp the first-launch timestamp so the 2-day gift trial
+      // clock starts ticking from the user's actual first run.
+      final stored = prefs.getString(_firstLaunchKey);
+      if (stored == null || stored.isEmpty) {
+        _firstLaunch = DateTime.now();
+        await prefs.setString(
+          _firstLaunchKey,
+          _firstLaunch!.toIso8601String(),
+        );
+      } else {
+        _firstLaunch = DateTime.tryParse(stored);
+      }
       _rolloverIfNeeded();
     } catch (_) {}
     _loaded = true;
@@ -130,6 +173,8 @@ class UsageService extends ChangeNotifier {
     _isPro = false;
     _hasRated = false;
     _photosTodayDate = _todayKey();
+    // Don't reset _firstLaunch — that would let any user retrigger
+    // the gift trial by clearing the app data. The trial is one-shot.
     notifyListeners();
     await _saveAll();
   }

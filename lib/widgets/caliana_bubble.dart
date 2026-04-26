@@ -741,19 +741,21 @@ class _RecipeCardState extends State<_RecipeCard> {
                     if (idea.link != null && idea.link!.isNotEmpty)
                       _openRecipeButton(idea),
                   ],
-                  // Always-visible commit button so the user can fire
-                  // "I ate this" without expanding the card.
-                  if (widget.onCommit != null) ...[
-                    const SizedBox(height: 10),
-                    _commitButton(),
-                  ],
-                  // Save button — explicit opt-in to keep this recipe
-                  // in the Recipes Sheet. We stopped auto-saving every
-                  // suggestion because it filled the collection with
-                  // ones the user didn't actually care about.
-                  if (widget.onSave != null) ...[
-                    const SizedBox(height: 8),
-                    _saveButton(),
+                  // Action row — "I ate it" lives next to "Save" so
+                  // the user can either commit the calories straight
+                  // to today's ring OR keep the recipe for later.
+                  if (widget.onCommit != null || widget.onSave != null) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        if (widget.onCommit != null)
+                          Expanded(child: _commitButton()),
+                        if (widget.onCommit != null && widget.onSave != null)
+                          const SizedBox(width: 8),
+                        if (widget.onSave != null)
+                          Expanded(child: _saveButton()),
+                      ],
+                    ),
                   ],
                 ],
               ),
@@ -1103,16 +1105,25 @@ class _RecipeCardState extends State<_RecipeCard> {
             ),
           ],
         ),
-        child: const Center(
-          child: Text(
-            'I ate this',
-            style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w900,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            Icon(
+              Icons.check_circle_outline_rounded,
+              size: 16,
               color: Colors.white,
-              letterSpacing: -0.2,
             ),
-          ),
+            SizedBox(width: 6),
+            Text(
+              'I ate it',
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ],
         ),
       ),
     );

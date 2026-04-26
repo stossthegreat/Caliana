@@ -189,6 +189,18 @@ async function suggestRealRecipes(
   // image, some bare text) read as cheap. If we can't find any with
   // images, return [] and let the Flutter UI fall through to chat.
   let pool = recipes.filter((r) => r.image && r.image.length > 0);
+
+  // Reject "70 best healthy meals" listicles. JSON-LD on those pages
+  // often parses but the ingredient list is actually a list of dish
+  // names with no quantities — the recipe card then displays "Stuffed
+  // peppers, Deli wraps, Tuna salad, ..." as ingredients, which is
+  // useless. Detect by:
+  //   1. Title looks like a roundup ("70 ...", "Top X", "Best ...
+  //      meals/recipes/dishes/ideas").
+  //   2. Ingredients have no quantity-shaped lines (no number, no
+  //      "g/ml/oz/cup/tbsp/tsp"). A real recipe almost always has at
+  //      least one ingredient with a quantity.
+  pool = pool.filter((r) => !looksLikeListicle(r));
   if (pool.length === 0) return [];
 
   // Intent-aware filtering: when the user asked for "high protein",
@@ -333,6 +345,32 @@ function recipeToMealIdea(r: Recipe): RichMealIdea {
  * and weight-loss users wanting "high protein dinner" should not
  * get the same sheet-pan chicken every time.
  */
+function looksLikeListicle(r: Recipe): boolean {
+  const title = r.title.toLowerCase();
+  // Title patterns: "70 healthy ...", "best 30 ...", "top 10 ...",
+  // "X meals/recipes/dishes/ideas/foods that ...".
+  if (
+    /^\s*\d{2,}\b/.test(title) || // leading number ≥ 10
+    /\btop\s+\d+\b/.test(title) ||
+    /\bbest\s+\d+\b/.test(title) ||
+    /\b\d+\s+(?:healthy|easy|delicious|quick|best)\b/.test(title) ||
+    /\b(?:meals|recipes|dishes|ideas|foods)\s+(?:that|to|for)\b/.test(title)
+  ) {
+    return true;
+  }
+  // Ingredient-shape check: a real recipe has at least one quantity
+  // line. Match digits, common unit words, or fraction characters.
+  const quantityRegex =
+    /(\d|½|¼|¾|⅓|⅔|⅛|tbsp|tsp|cup|cups|g\b|kg|ml|oz|lb)/i;
+  const ingrWithQty = r.ingredients.filter((line) =>
+    quantityRegex.test(line),
+  ).length;
+  if (r.ingredients.length >= 6 && ingrWithQty < 2) {
+    return true;
+  }
+  return false;
+}
+
 function profileHint(userContext: string | undefined): string {
   if (!userContext) return '';
   const lower = userContext.toLowerCase();
