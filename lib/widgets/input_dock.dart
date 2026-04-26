@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
+import 'caliana_avatar.dart';
 
 /// Bottom input dock — neutral surface so Caliana stays the hero.
 ///
@@ -265,14 +266,17 @@ class _InputDockState extends State<InputDock>
         animation: _pulseCtrl,
         builder: (context, _) {
           final t = _pulseCtrl.value;
-          final scale = widget.isRecording ? 1.04 : 1.0 + (t * 0.018);
+          // Stronger idle pulse so the FAB always reads "press me".
+          final scale = widget.isRecording
+              ? 1.07
+              : 1.0 + (t * 0.045);
           final glow =
-              widget.isRecording ? 0.55 : 0.22 + (t * 0.20);
+              widget.isRecording ? 0.65 : 0.32 + (t * 0.32);
           return Transform.scale(
             scale: scale,
             child: Container(
-              height: 54,
-              width: 168,
+              height: 56,
+              width: 172,
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
@@ -283,13 +287,13 @@ class _InputDockState extends State<InputDock>
                     Color(0xFF1F4FE0),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: BorderRadius.circular(30),
                 boxShadow: [
                   BoxShadow(
                     color: AppColors.primary.withValues(alpha: glow),
-                    blurRadius: 24,
-                    spreadRadius: 1.5,
-                    offset: const Offset(0, 6),
+                    blurRadius: 28,
+                    spreadRadius: 2.5,
+                    offset: const Offset(0, 8),
                   ),
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.08),
@@ -299,15 +303,13 @@ class _InputDockState extends State<InputDock>
                 ],
               ),
               child: Center(
-                child: Icon(
-                  showSend
-                      ? Icons.arrow_upward_rounded
-                      : (widget.isRecording
-                          ? Icons.stop_rounded
-                          : Icons.mic_rounded),
-                  color: Colors.white,
-                  size: 26,
-                ),
+                child: showSend
+                    ? const Icon(Icons.arrow_upward_rounded,
+                        color: Colors.white, size: 28)
+                    : widget.isRecording
+                        ? const Icon(Icons.stop_rounded,
+                            color: Colors.white, size: 28)
+                        : const _PressMeFace(),
               ),
             ),
           );
@@ -316,8 +318,6 @@ class _InputDockState extends State<InputDock>
     );
   }
 
-  /// Side action — smaller blue gradient circle. Just the icon. The
-  /// pill in the middle is the hero; these are quiet helpers.
   Widget _sideAction({
     required IconData icon,
     required VoidCallback onTap,
@@ -346,6 +346,62 @@ class _InputDockState extends State<InputDock>
           ],
         ),
         child: Icon(icon, color: Colors.white, size: 20),
+      ),
+    );
+  }
+}
+
+/// Caliana's face inside the mic FAB. Larger than the chat avatar
+/// (the FAB is the hero of the dock), no extra ring (the pill itself
+/// frames her), with a tiny mic glyph in the bottom-right so the
+/// affordance is unmistakable: "tap her, talk to her".
+class _PressMeFace extends StatelessWidget {
+  const _PressMeFace();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          ClipOval(
+            child: Image.asset(
+              'assets/caliana.png',
+              fit: BoxFit.cover,
+              alignment: const Alignment(0, -0.55),
+              width: 44,
+              height: 44,
+              filterQuality: FilterQuality.high,
+            ),
+          ),
+          Positioned(
+            right: -2,
+            bottom: -2,
+            child: Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.mic_rounded,
+                size: 11,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

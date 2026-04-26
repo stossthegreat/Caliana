@@ -241,7 +241,11 @@ class CalianaService {
   // Returns slot-tagged MealIdeas with images; the caller converts to
   // PlannedMeal and persists via PlanService.
   // ---------------------------------------------------------------------------
-  Future<List<MealIdea>> generateDayPlan({String mode = 'normal'}) async {
+  Future<List<MealIdea>> generateDayPlan({
+    String mode = 'normal',
+    int? targetKcalOverride,
+    int absorbingDeltaKcal = 0,
+  }) async {
     if (_baseUrl.isEmpty) return const [];
     final profile = UserProfileService.instance.profile;
     try {
@@ -255,6 +259,10 @@ class CalianaService {
               'userContext': profile.toAgentContext(),
               'tone': profile.tone,
               'mode': mode,
+              if (targetKcalOverride != null)
+                'targetKcalOverride': targetKcalOverride,
+              if (absorbingDeltaKcal > 0)
+                'absorbingDeltaKcal': absorbingDeltaKcal,
             }),
           )
           .timeout(const Duration(seconds: 45));

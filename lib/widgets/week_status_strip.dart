@@ -8,8 +8,12 @@ import '../theme/app_theme.dart';
 /// greyed. Below: a one-line headline that says where the week stands
 /// (under target, on track, over by X). The "you always know where
 /// you are" anchor of the Plan tab.
+///
+/// Each bar is tappable — the parent decides what to do (e.g. open a
+/// day-details sheet showing logged entries + planned meals).
 class WeekStatusStrip extends StatelessWidget {
-  const WeekStatusStrip({super.key});
+  final ValueChanged<DateTime>? onDayTap;
+  const WeekStatusStrip({super.key, this.onDayTap});
 
   @override
   Widget build(BuildContext context) {
@@ -90,7 +94,13 @@ class WeekStatusStrip extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              for (final day in days) _DayBar(day: day, goal: goal, isToday: _sameDay(day, now)),
+              for (final day in days)
+                _DayBar(
+                  day: day,
+                  goal: goal,
+                  isToday: _sameDay(day, now),
+                  onTap: onDayTap == null ? null : () => onDayTap!(day),
+                ),
             ],
           ),
         ],
@@ -144,8 +154,14 @@ class _DayBar extends StatelessWidget {
   final DateTime day;
   final int goal;
   final bool isToday;
+  final VoidCallback? onTap;
 
-  const _DayBar({required this.day, required this.goal, required this.isToday});
+  const _DayBar({
+    required this.day,
+    required this.goal,
+    required this.isToday,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -167,7 +183,10 @@ class _DayBar extends StatelessWidget {
     const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
     final letter = labels[(day.weekday - 1) % 7];
 
-    return Column(
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
@@ -214,6 +233,7 @@ class _DayBar extends StatelessWidget {
           ),
         ),
       ],
+      ),
     );
   }
 }

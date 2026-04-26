@@ -20,7 +20,6 @@ import '../widgets/calorie_ring.dart';
 import '../widgets/mini_macro_ring.dart';
 import '../widgets/date_strip.dart';
 import '../widgets/caliana_bubble.dart';
-import '../widgets/caliana_character.dart';
 import '../widgets/input_dock.dart';
 import '../widgets/quick_actions_bar.dart';
 import '../widgets/recipes_sheet.dart';
@@ -596,26 +595,8 @@ class _TodayScreenState extends State<TodayScreen> {
   Widget _buildChatArea(dayLog) {
     return Stack(
       children: [
-        // Caliana — anchored bottom-left, smaller. She used to dominate
-        // the centre at 240pt; now she's a 140pt presence to the side
-        // so the chat thread can breathe and the user reads messages,
-        // not the back of her head.
-        Positioned(
-          left: 8,
-          bottom: 0,
-          child: IgnorePointer(
-            child: ShaderMask(
-              shaderCallback: (rect) => const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0x00FFFFFF), Color(0xFFFFFFFF)],
-                stops: [0.0, 0.22],
-              ).createShader(rect),
-              blendMode: BlendMode.dstIn,
-              child: const CalianaCharacter(size: 140, floating: true),
-            ),
-          ),
-        ),
+        // Caliana lives in the mic FAB now — keep the chat surface
+        // clean so messages read first.
         Positioned.fill(
           child: dayLog.messages.isEmpty
               ? const SizedBox.shrink()
@@ -637,6 +618,7 @@ class _TodayScreenState extends State<TodayScreen> {
                       onChipTap: (label) => _onActionChip(label, msg),
                       onLongPress: () => _onMessageLongPress(msg),
                       onTap: () => _onMessageTap(msg),
+                      onCommitMeal: _commitMealFromIdea,
                     );
                   },
                 ),
@@ -1512,6 +1494,52 @@ class _TodayScreenState extends State<TodayScreen> {
     if (msg.foodEntry != null) {
       _openFoodEditSheet(msg.foodEntry!);
     }
+  }
+
+  /// Commit a suggested meal as a real food entry on today. Called from
+  /// the "I ate this" button on every recipe card in chat. Adds the
+  /// entry, fires haptics, and shows a snackbar so the user sees the
+  /// log was registered.
+  Future<void> _commitMealFromIdea(MealIdea idea) async {
+    HapticFeedback.mediumImpact();
+    final now = DateTime.now();
+    final entry = FoodEntry(
+      id: 'fe_${now.millisecondsSinceEpoch}',
+      timestamp: now,
+      name: idea.name,
+      calories: idea.calories,
+      proteinGrams: idea.protein,
+      carbsGrams: idea.carbs,
+      fatGrams: idea.fat,
+      inputMethod: 'plan',
+      photoPath: null,
+      confidence: 'high',
+      notes: 'From a meal suggestion',
+    );
+    await DayLogService.instance.addEntry(entry);
+    await DayLogService.instance.addMessage(
+      now,
+      ChatMessage(
+        id: 'm_${now.millisecondsSinceEpoch}_log',
+        timestamp: now,
+        role: 'caliana',
+        type: 'foodLog',
+        text: entry.name,
+        foodEntry: entry,
+      ),
+    );
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.showSnackBar(SnackBar(
+      backgroundColor: const Color(0xFF0F172A),
+      duration: const Duration(seconds: 2),
+      content: Text(
+        'Logged: ${entry.name} (${entry.calories} kcal)',
+        style: const TextStyle(
+            color: Colors.white, fontWeight: FontWeight.w600),
+      ),
+    ));
+    _scrollToBottom();
   }
 
   void _openFoodEditSheet(FoodEntry entry) {
