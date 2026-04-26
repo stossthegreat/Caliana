@@ -282,7 +282,7 @@ class CalianaService {
       req.files.add(await http.MultipartFile.fromPath('photo', photoPath));
       if (hint != null && hint.isNotEmpty) req.fields['hint'] = hint;
 
-      final streamed = await req.send().timeout(const Duration(seconds: 30));
+      final streamed = await req.send().timeout(const Duration(seconds: 60));
       final res = await http.Response.fromStream(streamed);
       if (res.statusCode != 200) {
         _lastFoodLogError =
