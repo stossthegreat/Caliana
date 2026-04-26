@@ -19,6 +19,7 @@ class CalianaBubble extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onPlayVoice;
   final ValueChanged<MealIdea>? onCommitMeal;
+  final ValueChanged<MealIdea>? onSaveMeal;
 
   const CalianaBubble({
     super.key,
@@ -28,6 +29,7 @@ class CalianaBubble extends StatelessWidget {
     this.onTap,
     this.onPlayVoice,
     this.onCommitMeal,
+    this.onSaveMeal,
   });
 
   @override
@@ -74,6 +76,9 @@ class CalianaBubble extends StatelessWidget {
                             onCommit: onCommitMeal == null
                                 ? null
                                 : () => onCommitMeal!(idea),
+                            onSave: onSaveMeal == null
+                                ? null
+                                : () => onSaveMeal!(idea),
                           ),
                         ))
                     ,
@@ -637,7 +642,8 @@ class _SpeakingAvatarState extends State<_SpeakingAvatar>
 class _RecipeCard extends StatefulWidget {
   final MealIdea idea;
   final VoidCallback? onCommit;
-  const _RecipeCard({required this.idea, this.onCommit});
+  final VoidCallback? onSave;
+  const _RecipeCard({required this.idea, this.onCommit, this.onSave});
 
   @override
   State<_RecipeCard> createState() => _RecipeCardState();
@@ -740,6 +746,14 @@ class _RecipeCardState extends State<_RecipeCard> {
                   if (widget.onCommit != null) ...[
                     const SizedBox(height: 10),
                     _commitButton(),
+                  ],
+                  // Save button — explicit opt-in to keep this recipe
+                  // in the Recipes Sheet. We stopped auto-saving every
+                  // suggestion because it filled the collection with
+                  // ones the user didn't actually care about.
+                  if (widget.onSave != null) ...[
+                    const SizedBox(height: 8),
+                    _saveButton(),
                   ],
                 ],
               ),
@@ -1099,6 +1113,47 @@ class _RecipeCardState extends State<_RecipeCard> {
               letterSpacing: -0.2,
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _saveButton() {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        widget.onSave?.call();
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.primary.withValues(alpha: 0.30),
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            Icon(
+              Icons.bookmark_border_rounded,
+              size: 16,
+              color: AppColors.primary,
+            ),
+            SizedBox(width: 6),
+            Text(
+              'Save',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: AppColors.primary,
+                letterSpacing: -0.1,
+              ),
+            ),
+          ],
         ),
       ),
     );
