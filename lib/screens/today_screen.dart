@@ -619,10 +619,11 @@ class _TodayScreenState extends State<TodayScreen> {
                       onChipTap: (label) => _onActionChip(label, msg),
                       onLongPress: () => _onMessageLongPress(msg),
                       onTap: () => _onMessageTap(msg),
-                      // No "I ate this" on home cards — that's a Plan
-                      // tab action. Today's reality is logged via snap
-                      // / voice / text; suggestions here are just
-                      // suggestions, not pre-commits.
+                      // Two actions on every recipe in chat:
+                      //   • Save → keep the recipe in the Recipes Sheet
+                      //   • I ate it → log the kcal/macros to today's
+                      //     ring instantly. Tap once, calories are in.
+                      onCommitMeal: _commitMealFromIdea,
                       onSaveMeal: _saveMealFromIdea,
                     );
                   },
@@ -1538,6 +1539,50 @@ class _TodayScreenState extends State<TodayScreen> {
       if (after.length >= 3) t = after;
     }
     return t.trim();
+  }
+
+  /// Commit a chat-suggested meal as a real food entry on today.
+  /// Triggered by the "I ate it" button on every recipe card. The
+  /// calories land in today's ring instantly.
+  Future<void> _commitMealFromIdea(MealIdea idea) async {
+    HapticFeedback.mediumImpact();
+    final now = DateTime.now();
+    final entry = FoodEntry(
+      id: 'fe_${now.millisecondsSinceEpoch}',
+      timestamp: now,
+      name: idea.name,
+      calories: idea.calories,
+      proteinGrams: idea.protein,
+      carbsGrams: idea.carbs,
+      fatGrams: idea.fat,
+      inputMethod: 'plan',
+      photoPath: null,
+      confidence: 'high',
+      notes: 'From a meal suggestion',
+    );
+    await DayLogService.instance.addEntry(entry);
+    await DayLogService.instance.addMessage(
+      now,
+      ChatMessage(
+        id: 'm_${now.millisecondsSinceEpoch}_log',
+        timestamp: now,
+        role: 'caliana',
+        type: 'foodLog',
+        text: entry.name,
+        foodEntry: entry,
+      ),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+      backgroundColor: const Color(0xFF0F172A),
+      duration: const Duration(seconds: 2),
+      content: Text(
+        'Logged: ${entry.name} (${entry.calories} kcal)',
+        style: const TextStyle(
+            color: Colors.white, fontWeight: FontWeight.w600),
+      ),
+    ));
+    _scrollToBottom();
   }
 
   /// Save a suggested meal into the user's Recipes Sheet. Triggered
