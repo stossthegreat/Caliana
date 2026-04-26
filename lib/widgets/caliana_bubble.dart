@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -226,7 +228,6 @@ class CalianaBubble extends StatelessWidget {
                   onTap?.call();
                 },
                 child: Container(
-                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
@@ -245,100 +246,112 @@ class CalianaBubble extends StatelessWidget {
                       ),
                     ],
                   ),
+                  clipBehavior: Clip.antiAlias,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Header: method tag + name (top), then big kcal
-                      // number on its own line so it dominates the card.
-                      Row(
-                        children: [
-                          _methodTag(entry.inputMethod),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              entry.name,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w900,
-                                color: AppColors.textPrimary,
-                                letterSpacing: -0.3,
-                                height: 1.2,
-                              ),
+                      if (entry.photoPath != null &&
+                          entry.photoPath!.isNotEmpty)
+                        _photoHero(entry.photoPath!),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              children: [
+                                _methodTag(entry.inputMethod),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    entry.name,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w900,
+                                      color: AppColors.textPrimary,
+                                      letterSpacing: -0.3,
+                                      height: 1.2,
+                                    ),
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.edit_rounded,
+                                  size: 14,
+                                  color: AppColors.textHint,
+                                ),
+                              ],
                             ),
-                          ),
-                          Icon(
-                            Icons.edit_rounded,
-                            size: 14,
-                            color: AppColors.textHint,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      // The calorie number is the hero — big, tabular,
-                      // brand-blue. Same scale Cal AI / Pingo lead with.
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Text(
-                            '${entry.calories}',
-                            style: const TextStyle(
-                              fontSize: 36,
-                              fontWeight: FontWeight.w900,
-                              color: AppColors.primary,
-                              letterSpacing: -1.2,
-                              height: 1,
-                              fontFeatures: [FontFeature.tabularFigures()],
+                            const SizedBox(height: 14),
+                            // Calorie number is the hero — big, tabular,
+                            // brand-blue. Same scale Cal AI / Pingo lead with.
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.baseline,
+                              textBaseline: TextBaseline.alphabetic,
+                              children: [
+                                Text(
+                                  '${entry.calories}',
+                                  style: const TextStyle(
+                                    fontSize: 36,
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.primary,
+                                    letterSpacing: -1.2,
+                                    height: 1,
+                                    fontFeatures: [
+                                      FontFeature.tabularFigures()
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  'kcal',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.textSecondary,
+                                    letterSpacing: -0.1,
+                                  ),
+                                ),
+                                const Spacer(),
+                                if (_confidenceLabel(entry.confidence) != null)
+                                  _confidenceChip(entry.confidence),
+                              ],
                             ),
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            'kcal',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textSecondary,
-                              letterSpacing: -0.1,
+                            const SizedBox(height: 14),
+                            // Three macro tiles, equally spaced. Bigger,
+                            // visually distinct, tinted per macro colour.
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _macroTile(
+                                    'Protein',
+                                    entry.proteinGrams,
+                                    AppColors.macroProtein,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _macroTile(
+                                    'Carbs',
+                                    entry.carbsGrams,
+                                    AppColors.macroCarbs,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _macroTile(
+                                    'Fat',
+                                    entry.fatGrams,
+                                    AppColors.macroFat,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          const Spacer(),
-                          if (_confidenceLabel(entry.confidence) != null)
-                            _confidenceChip(entry.confidence),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      // Three macro tiles, equally spaced. Bigger,
-                      // visually distinct, with a thin colored bar
-                      // showing the macro ratio.
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _macroTile(
-                              'Protein',
-                              entry.proteinGrams,
-                              AppColors.macroProtein,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _macroTile(
-                              'Carbs',
-                              entry.carbsGrams,
-                              AppColors.macroCarbs,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _macroTile(
-                              'Fat',
-                              entry.fatGrams,
-                              AppColors.macroFat,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -346,6 +359,31 @@ class CalianaBubble extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Hero photo at the top of the food card when the entry was logged
+  /// from a snap or library image. Keeps the receipt feeling: "this is
+  /// what I ate, here are the numbers". Falls back to a placeholder if
+  /// the local file is gone.
+  Widget _photoHero(String path) {
+    return SizedBox(
+      height: 160,
+      width: double.infinity,
+      child: Image.file(
+        File(path),
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          color: AppColors.primary.withValues(alpha: 0.06),
+          child: const Center(
+            child: Icon(
+              Icons.image_not_supported_rounded,
+              size: 32,
+              color: AppColors.textHint,
+            ),
+          ),
         ),
       ),
     );
@@ -654,7 +692,24 @@ class _RecipeCardState extends State<_RecipeCard> {
                   if (_expanded) ...[
                     const SizedBox(height: 12),
                     if (idea.ingredients.isNotEmpty) ...[
-                      _sectionHeader('Ingredients'),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          _sectionHeader('Ingredients · 1 portion'),
+                          const Spacer(),
+                          if (idea.originalServings != null &&
+                              idea.originalServings! > 1)
+                            Text(
+                              'scaled from ${idea.originalServings}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textHint,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                        ],
+                      ),
                       const SizedBox(height: 4),
                       ...idea.ingredients.map(_bulletLine),
                       const SizedBox(height: 10),

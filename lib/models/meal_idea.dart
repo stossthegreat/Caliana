@@ -20,6 +20,9 @@ class MealIdea {
   final int? totalTimeMin;
   final String? description;
   final String? sourceDomain;
+  // Always 1 — backend scales every recipe down to a single portion.
+  final int? servings;
+  final int? originalServings;
 
   const MealIdea({
     required this.name,
@@ -37,6 +40,8 @@ class MealIdea {
     this.totalTimeMin,
     this.description,
     this.sourceDomain,
+    this.servings,
+    this.originalServings,
   });
 
   bool get hasRichRecipe =>
@@ -68,6 +73,8 @@ class MealIdea {
         sourceDomain: (json['sourceDomain'] as String?)?.trim().isEmpty ?? true
             ? null
             : json['sourceDomain'] as String?,
+        servings: (json['servings'] as num?)?.round(),
+        originalServings: (json['originalServings'] as num?)?.round(),
       );
 
   Map<String, dynamic> toJson() => {
@@ -86,6 +93,8 @@ class MealIdea {
         if (totalTimeMin != null) 'totalTimeMin': totalTimeMin,
         if (description != null) 'description': description,
         if (sourceDomain != null) 'sourceDomain': sourceDomain,
+        if (servings != null) 'servings': servings,
+        if (originalServings != null) 'originalServings': originalServings,
       };
 
   static List<String> _stringList(dynamic raw) {

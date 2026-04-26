@@ -38,13 +38,19 @@ export async function registerTranscribeRoute(app: FastifyInstance): Promise<voi
         return reply.status(400).send({ error: 'Audio file is empty' });
       }
 
-      // Forward to OpenAI Whisper
+      // Forward to OpenAI Whisper. Drop the language flag so Whisper
+      // auto-detects (it handles British accents, code-switching, and
+      // brand names noticeably better than forcing 'en').
       const transcription = await getClient().audio.transcriptions.create({
         file: await toFile(buffer, data.filename || 'audio.m4a', {
           type: data.mimetype || 'audio/m4a',
         }),
         model: 'whisper-1',
-        language: 'en',
+        // A short prompt biases Whisper toward food/calorie vocabulary
+        // so it stops mishearing dish names. Common confusions:
+        // "Greggs" / "graggs", "espresso" / "expresso", "macros" / "makros".
+        prompt:
+          'Caliana is a calorie tracking app. Users log meals: roast dinner, cheesecake, Greggs sausage roll, Pret salad, latte, omelette, etc.',
       });
 
       return {

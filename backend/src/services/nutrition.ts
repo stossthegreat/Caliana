@@ -59,7 +59,7 @@ const PHOTO_SYSTEM = `You see a photo of food and parse it into a SINGLE log ent
 
 Return JSON only:
 {
-  "name": "...",
+  "name": "concise dish name (2-5 words, never a sentence)",
   "calories": ...,
   "protein": ...,
   "carbs": ...,
@@ -73,14 +73,32 @@ CONFIDENCE RULES:
 - MEDIUM: known dish but hidden ingredients (oils, sauces, dressings — flag in notes)
 - LOW: mixed dish, unclear portion, multiple unknowns
 
-ESTIMATION RULES:
-- If the plate has multiple distinct foods, sum them into one entry.
-- Hidden fats are the #1 error source — if you suspect oil/butter/dressing, ASSUME it
-  and add it to the fat estimate, then mention in notes (e.g. "assumed 1 tbsp oil").
-- Use a reasonable plate-size assumption (~10-inch dinner plate) when no scale
-  reference is visible.
-- Round calories to nearest 10.
-- Be honest about uncertainty in notes.`;
+ESTIMATION RULES — accuracy is the whole product, take it seriously:
+- IDENTIFY THE DISH FIRST. Do not guess. If it's a slice of cheesecake,
+  say cheesecake. If it's a doughnut, say doughnut. Never approximate
+  a sweet/dessert as a salad just because portions are small.
+- Use realistic averages for the dish:
+    cheesecake slice (~120g): 350-450 kcal, 4P / 30C / 25F
+    glazed doughnut: 250-300 kcal, 4P / 35C / 12F
+    croissant: 270-330 kcal, 6P / 30C / 17F
+    Greggs sausage roll: 327 kcal, 9P / 25C / 22F
+    chocolate brownie: 380-450 kcal
+    chicken caesar salad (full meal): 500-650 kcal
+    grilled salmon + salad: 400-500 kcal
+    pizza slice: 280-350 kcal per slice
+    Big Mac: 550 kcal
+    bowl of pasta with sauce: 500-700 kcal
+- For multi-item plates, sum components.
+- Hidden fats are the #1 error source — if you suspect oil/butter/
+  dressing, ASSUME it and add to fat estimate, mention in notes
+  (e.g. "assumed 1 tbsp oil").
+- If the camera is too close to gauge portion, default to ONE typical
+  serving (not half, not double).
+- Macros must roughly add up: protein*4 + carbs*4 + fat*9 within
+  15% of the calorie total. Re-check before returning.
+- Round calories to nearest 10. Macros to nearest 1g.
+- Be honest about uncertainty in notes — but never invent a salad
+  estimate for a clearly-visible cake.`;
 
 /**
  * Parse text or transcribed speech into a single FoodEntry estimate.
