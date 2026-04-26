@@ -677,20 +677,32 @@ class _TodayScreenState extends State<TodayScreen> {
 
   /// Asks the recipe agent for 2-3 ideas, drops them in chat as expandable
   /// recipe cards, and saves each to the Recipes Sheet so the user can find
-  /// them later. Falls back to a chat reply if the agent returns nothing.
+  /// them later. NEVER falls back to a chat reply — if the recipe agent
+  /// comes up empty we retry once with a simple query, then drop a static
+  /// recipe card so the user always gets a meal.
   Future<void> _suggestRecipes({
     required String ask,
     required String intro,
   }) async {
     if (_isThinking) return;
     setState(() => _isThinking = true);
-    final ideas = await CalianaService.instance.suggestMeals(ask);
+    var ideas = await CalianaService.instance.suggestMeals(ask);
     if (!mounted) return;
 
+    // Recipe pipeline came up dry — usually because the listicle filter
+    // or the JSON-LD parser nuked every result. Retry once with a
+    // generic fallback query before giving up on the network.
     if (ideas.isEmpty) {
-      setState(() => _isThinking = false);
-      await _talkTo("Suggest $ask.");
-      return;
+      ideas = await CalianaService.instance
+          .suggestMeals('easy healthy dinner recipe');
+      if (!mounted) return;
+    }
+
+    // Still nothing? Drop a hardcoded fallback so the user gets a real
+    // meal card instead of a chat reply. Pressing "Fix my day" should
+    // ALWAYS produce something they can cook.
+    if (ideas.isEmpty) {
+      ideas = [_fallbackMeal()];
     }
 
     final now = DateTime.now();
@@ -707,13 +719,38 @@ class _TodayScreenState extends State<TodayScreen> {
       ),
     );
 
-    // Don't auto-save the suggestions — the user chooses what to save
-    // via the Save button on each recipe card. Auto-save was filling
-    // their collection with every passing suggestion; explicit-save
-    // is the cleaner mental model.
-
     if (mounted) setState(() => _isThinking = false);
     _scrollToBottom();
+  }
+
+  /// Hardcoded "you'll always get a meal" fallback. Used when the
+  /// backend recipe pipeline returns nothing twice in a row.
+  MealIdea _fallbackMeal() {
+    return const MealIdea(
+      name: 'Lemon-pepper chicken & greens',
+      calories: 480,
+      protein: 42,
+      carbs: 28,
+      fat: 18,
+      ingredients: [
+        '1 chicken breast (~180g)',
+        '1 tbsp olive oil',
+        '1 lemon (juice + zest)',
+        '1 tsp cracked black pepper',
+        '1 garlic clove, minced',
+        '150g tenderstem broccoli',
+        '100g baby spinach',
+        'Salt to taste',
+      ],
+      steps: [
+        'Butterfly the chicken breast and rub with olive oil, lemon zest, '
+            'pepper, salt, and garlic.',
+        'Sear in a hot pan 4 minutes a side until golden and cooked through.',
+        'Steam the broccoli 3 minutes; wilt the spinach in the chicken pan.',
+        'Plate the greens, slice the chicken on top, finish with lemon juice.',
+      ],
+      sourceDomain: 'caliana',
+    );
   }
 
   Future<void> _onFixMyDay() async {
