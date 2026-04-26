@@ -107,9 +107,15 @@ async function suggestRealRecipes(
   remainingKcal: number | undefined,
   userContext: string | undefined,
 ): Promise<RichMealIdea[]> {
-  // Vary the query each call so we don't return the same 3 recipes
-  // every single time. Pull from a small rotation of suffixes — Google
-  // re-ranks meaningfully with even a one-word change.
+  // Variety has three knobs:
+  //   1. Suffix variant — Google re-ranks meaningfully with even a
+  //      one-word change to the tail.
+  //   2. Cuisine spice — every call rolls in a random cuisine /
+  //      angle so the same "high-protein dinner" ask returns Greek
+  //      one day, Korean another, Italian another.
+  //   3. Profile fold-in — activity level + goal nudge the search
+  //      ("athlete", "weight loss") so an athlete and a sedentary
+  //      maintainer don't get the same sheet pan chicken.
   const variants = [
     'recipe with photo',
     'easy recipe',
@@ -117,12 +123,47 @@ async function suggestRealRecipes(
     'recipe ideas',
     'simple recipe',
     'recipe for one',
+    'one pot recipe',
+    'high rated recipe',
+    'modern recipe',
+    'Mediterranean recipe',
+    'Asian-inspired recipe',
+    'British recipe',
   ];
-  const variant = variants[Math.floor(Math.random() * variants.length)];
-  const budgetHint = typeof remainingKcal === 'number' && remainingKcal > 0
-    ? ` under ${Math.round(remainingKcal)} calories`
-    : '';
-  const query = `${ask}${budgetHint} ${variant}`;
+  const cuisineSpice = [
+    '',
+    ' Greek',
+    ' Italian',
+    ' Mexican',
+    ' Korean',
+    ' Japanese',
+    ' Thai',
+    ' Indian',
+    ' Spanish',
+    ' Middle Eastern',
+    ' Vietnamese',
+    ' French',
+    ' British',
+    ' American',
+    ' Caribbean',
+    '', // weight blanks higher so plain searches still happen
+    '',
+    '',
+  ];
+  // Date-of-day seed mixed into Math.random so a single user opening
+  // the app twice in a row is more likely to see different rotations
+  // even if Math.random clusters.
+  const seed =
+    Date.now() ^ Math.floor(Math.random() * 1e9);
+  const pickVariant = variants[seed % variants.length];
+  const pickSpice = cuisineSpice[seed % cuisineSpice.length];
+
+  const profileTag = profileHint(userContext);
+  const budgetHint =
+    typeof remainingKcal === 'number' && remainingKcal > 0
+      ? ` under ${Math.round(remainingKcal)} calories`
+      : '';
+  const query = `${ask}${pickSpice}${budgetHint} ${pickVariant}${profileTag}`;
 
   // Pull a wide net so the image-only filter still has plenty to pick
   // from after low-quality recipes are stripped.
@@ -284,6 +325,27 @@ function recipeToMealIdea(r: Recipe): RichMealIdea {
     description: r.description || undefined,
     sourceDomain: r.source.domain,
   };
+}
+
+/**
+ * Squeeze a tiny activity/goal hint out of the user-context blob so
+ * Google's results lean toward the right kind of recipe. Athletes
+ * and weight-loss users wanting "high protein dinner" should not
+ * get the same sheet-pan chicken every time.
+ */
+function profileHint(userContext: string | undefined): string {
+  if (!userContext) return '';
+  const lower = userContext.toLowerCase();
+  const tags: string[] = [];
+  if (lower.includes('athlete')) tags.push('athlete');
+  else if (lower.includes('active')) tags.push('active lifestyle');
+  if (lower.includes('lose')) tags.push('weight loss');
+  else if (lower.includes('gain')) tags.push('muscle building');
+  if (lower.includes('vegan')) tags.push('vegan');
+  else if (lower.includes('vegetarian')) tags.push('vegetarian');
+  else if (lower.includes('pescatarian')) tags.push('pescatarian');
+  if (tags.length === 0) return '';
+  return ' for ' + tags.join(' ');
 }
 
 function parseGrams(s: string | undefined): number {

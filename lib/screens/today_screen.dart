@@ -1451,6 +1451,25 @@ class _TodayScreenState extends State<TodayScreen> {
       case 'fix my dinner':
         _onFixMyDay();
         return;
+      // ── "Get recipe" — turns Caliana's last suggestion text into a
+      //    real recipe pull. The chip arrives attached to her reply
+      //    bubble; we use that message's text as the search query so
+      //    a "salmon and greens" suggestion fetches an actual salmon-
+      //    and-greens recipe with photo + ingredients.
+      case 'get recipe':
+      case 'find recipe':
+      case 'show me':
+        HapticFeedback.lightImpact();
+        final ask = _stripPersonaForSearch(source.text);
+        if (ask.trim().isEmpty) {
+          _onSuggestDinner();
+        } else {
+          _suggestRecipes(
+            ask: '$ask recipe',
+            intro: "Right — here's what I found.",
+          );
+        }
+        return;
       case 'suggest dinner':
       case 'dinner ideas':
         _onSuggestDinner();
@@ -1491,6 +1510,34 @@ class _TodayScreenState extends State<TodayScreen> {
     if (msg.foodEntry != null) {
       _openFoodEditSheet(msg.foodEntry!);
     }
+  }
+
+  /// Caliana's chat replies often wrap the dish in persona language
+  /// ("Salmon and greens. Sorted."). When the user taps "Get recipe"
+  /// we want to feed the search a clean dish phrase, not "Sorted."
+  /// This trims persona scaffolding and keeps the food noun(s).
+  String _stripPersonaForSearch(String text) {
+    var t = text.trim();
+    // Drop everything after the first sentence — the dish typically
+    // sits in the opening clause ("Salmon and greens. Sorted."
+    // → "Salmon and greens").
+    final firstSentence = t.split(RegExp(r'[.!?]')).first.trim();
+    if (firstSentence.length >= 3) t = firstSentence;
+    // Strip leading filler ("Right —", "Sorted —", "Behave —", etc).
+    t = t.replaceFirst(
+      RegExp(
+        r'^(right|sorted|behave|tidy|alright|okay|ok|so|well|listen|look)[\s,—-]+',
+        caseSensitive: false,
+      ),
+      '',
+    );
+    // If the dish is clearly named after a colon ("Dinner: salmon and
+    // greens") drop the prefix.
+    if (t.contains(':')) {
+      final after = t.split(':').sublist(1).join(':').trim();
+      if (after.length >= 3) t = after;
+    }
+    return t.trim();
   }
 
   /// Save a suggested meal into the user's Recipes Sheet. Triggered
