@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'theme/app_theme.dart';
@@ -10,6 +12,7 @@ import 'services/day_log_service.dart';
 import 'services/saved_meals_service.dart';
 import 'services/plan_service.dart';
 import 'services/recovery_autopilot.dart';
+import 'services/revenuecat_service.dart';
 import 'services/analytics_service.dart';
 
 void main() async {
@@ -51,6 +54,10 @@ void main() async {
     // rebuilds tomorrow's plan in recovery mode automatically. The
     // user logs reality; she fixes the future.
     RecoveryAutopilot.instance.start();
+
+    // Configure RevenueCat in the background — fire-and-forget so a
+    // missing/bad API key never blocks the app from booting.
+    unawaited(RevenueCatService.instance.bootstrap());
 
     AnalyticsService.instance.logAppOpen();
 
