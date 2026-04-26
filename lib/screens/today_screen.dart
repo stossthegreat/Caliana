@@ -613,8 +613,9 @@ class _TodayScreenState extends State<TodayScreen> {
         break;
       case 'high_protein':
         _suggestRecipes(
-          ask: 'high-protein meals around 400-500 kcal',
-          intro: "Right. Two high-protein options.",
+          ask:
+              'high protein chicken or salmon dinner with at least 35g protein',
+          intro: "High-protein options — 35g+ per serving.",
         );
         break;
       case 'eat_clean':
@@ -1410,8 +1411,9 @@ class _TodayScreenState extends State<TodayScreen> {
       case 'high protein':
       case 'high-protein':
         _suggestRecipes(
-          ask: 'high-protein meals around 400-500 kcal',
-          intro: "Two high-protein options. Pick one.",
+          ask:
+              'high protein chicken or salmon dinner with at least 35g protein',
+          intro: "High-protein options — 35g+ per serving.",
         );
         return;
       case 'eat clean':

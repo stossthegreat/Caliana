@@ -122,20 +122,64 @@ async function suggestRealRecipes(
 
   // STRICT: only image-rich recipes. Inconsistent cards (some hero
   // image, some bare text) read as cheap. If we can't find any with
-  // images, return [] and let the GPT fallback handle it.
-  const withImages = recipes.filter((r) => r.image && r.image.length > 0);
-  if (withImages.length === 0) return [];
+  // images, return [] and let the Flutter UI fall through to chat.
+  let pool = recipes.filter((r) => r.image && r.image.length > 0);
+  if (pool.length === 0) return [];
+
+  // Intent-aware filtering: when the user asked for "high protein",
+  // strip dishes that obviously don't deliver (plain salads with no
+  // protein number, dessert recipes, etc.) BEFORE ranking. This stops
+  // the "I asked high protein, got Caesar salad" complaint.
+  const askLower = ask.toLowerCase();
+  const wantsHighProtein =
+    askLower.includes('high protein') ||
+    askLower.includes('high-protein') ||
+    askLower.includes('protein-rich');
+
+  if (wantsHighProtein) {
+    const proteinFiltered = pool.filter((r) => isLikelyHighProtein(r));
+    if (proteinFiltered.length >= 1) pool = proteinFiltered;
+    // If filter wipes everything (e.g. JSON-LD has no nutrition data),
+    // keep the original pool but the scorer below will still demote
+    // obvious low-protein dishes by name.
+  }
 
   const target = remainingKcal && remainingKcal > 0 ? remainingKcal : 0;
-  const scored = withImages
-    .map((r) => ({ r, score: scoreRecipe(r, target) }))
+  const scored = pool
+    .map((r) => ({ r, score: scoreRecipe(r, target, wantsHighProtein) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 3);
 
   return scored.map(({ r }) => recipeToMealIdea(r));
 }
 
-function scoreRecipe(r: Recipe, target: number): number {
+function isLikelyHighProtein(r: Recipe): boolean {
+  // 1. JSON-LD told us protein in grams: trust it. >= 25g/serving qualifies.
+  const proteinGrams = parseGrams(r.nutrition?.protein);
+  if (proteinGrams >= 25) return true;
+  // 2. JSON-LD has nutrition but protein is low — DON'T trust the title alone.
+  if (r.nutrition?.protein && proteinGrams < 25) return false;
+  // 3. No nutrition data at all: name-based heuristic.
+  const name = r.title.toLowerCase();
+  const proteinHits = [
+    'chicken', 'salmon', 'tuna', 'turkey', 'beef', 'steak', 'pork',
+    'shrimp', 'prawn', 'cod', 'tofu', 'tempeh', 'lentil', 'chickpea',
+    'protein', 'omelette', 'omelet', 'eggs',
+  ];
+  const proteinDodges = [
+    'pasta salad', 'caesar salad', 'green salad', 'side salad',
+    'fruit salad', 'cookie', 'cake', 'brownie', 'pancake',
+    'doughnut', 'donut', 'smoothie', 'oatmeal',
+  ];
+  if (proteinDodges.some((w) => name.includes(w))) return false;
+  return proteinHits.some((w) => name.includes(w));
+}
+
+function scoreRecipe(
+  r: Recipe,
+  target: number,
+  wantsHighProtein: boolean,
+): number {
   let s = 0;
   if (r.image) s += 4; // Hero image is non-negotiable for the new card.
   if (r.rating.value >= 4.5) s += 3;
@@ -148,6 +192,30 @@ function scoreRecipe(r: Recipe, target: number): number {
     else if (diff > 0.80) s -= 3;
   }
   s += (r.source.authority || 0) / 25;
+
+  if (wantsHighProtein) {
+    const grams = parseGrams(r.nutrition?.protein);
+    if (grams >= 35) s += 5;
+    else if (grams >= 25) s += 3;
+    else if (grams > 0 && grams < 15) s -= 5; // Demote known low-protein.
+    const name = r.title.toLowerCase();
+    if (
+      name.includes('chicken') ||
+      name.includes('salmon') ||
+      name.includes('steak') ||
+      name.includes('tuna') ||
+      name.includes('protein')
+    ) {
+      s += 2;
+    }
+    if (
+      name.includes('caesar salad') ||
+      name.includes('pasta salad') ||
+      name.includes('green salad')
+    ) {
+      s -= 4;
+    }
+  }
   return s;
 }
 
