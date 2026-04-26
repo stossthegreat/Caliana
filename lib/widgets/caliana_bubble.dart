@@ -194,22 +194,17 @@ class CalianaBubble extends StatelessWidget {
   Widget _foodLogCard() {
     final entry = message.foodEntry!;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Dismissible(
         key: ValueKey(entry.id),
         direction: DismissDirection.endToStart,
         background: Container(
-          margin: const EdgeInsets.only(left: 56),
+          margin: const EdgeInsets.only(left: 28),
           padding: const EdgeInsets.symmetric(horizontal: 22),
           alignment: Alignment.centerRight,
           decoration: BoxDecoration(
             color: AppColors.accent.withValues(alpha: 0.15),
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(16),
-              topRight: Radius.circular(4),
-              bottomLeft: Radius.circular(16),
-              bottomRight: Radius.circular(16),
-            ),
+            borderRadius: BorderRadius.circular(20),
           ),
           child: const Icon(
             Icons.delete_outline_rounded,
@@ -223,106 +218,220 @@ class CalianaBubble extends StatelessWidget {
         },
         child: Row(
           children: [
-            const SizedBox(width: 56),
+            const SizedBox(width: 28),
             Expanded(
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: GestureDetector(
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    onTap?.call();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(16),
-                        topRight: Radius.circular(4),
-                        bottomLeft: Radius.circular(16),
-                        bottomRight: Radius.circular(16),
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  onTap?.call();
+                },
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: AppColors.surfaceBorder, width: 1),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.06),
+                        blurRadius: 18,
+                        offset: const Offset(0, 6),
                       ),
-                      border: Border.all(
-                          color: AppColors.surfaceBorder, width: 1),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _methodIcon(entry.inputMethod),
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                entry.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '${entry.calories}',
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Header: method tag + name (top), then big kcal
+                      // number on its own line so it dominates the card.
+                      Row(
+                        children: [
+                          _methodTag(entry.inputMethod),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              entry.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontSize: 20,
+                                fontSize: 16,
                                 fontWeight: FontWeight.w900,
-                                color: AppColors.primary,
-                                letterSpacing: -0.5,
-                                fontFeatures: [FontFeature.tabularFigures()],
+                                color: AppColors.textPrimary,
+                                letterSpacing: -0.3,
+                                height: 1.2,
                               ),
                             ),
-                            const SizedBox(width: 3),
-                            Text(
-                              'kcal',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: AppColors.textHint,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Wrap(
-                          spacing: 5,
-                          children: [
-                            _macroPill('P', entry.proteinGrams,
-                                AppColors.macroProtein),
-                            _macroPill('C', entry.carbsGrams,
-                                AppColors.macroCarbs),
-                            _macroPill(
-                                'F', entry.fatGrams, AppColors.macroFat),
-                          ],
-                        ),
-                        if (_confidenceLabel(entry.confidence) != null) ...[
-                          const SizedBox(height: 6),
-                          _confidenceChip(entry.confidence),
+                          ),
+                          Icon(
+                            Icons.edit_rounded,
+                            size: 14,
+                            color: AppColors.textHint,
+                          ),
                         ],
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 14),
+                      // The calorie number is the hero — big, tabular,
+                      // brand-blue. Same scale Cal AI / Pingo lead with.
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.lastBaseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(
+                            '${entry.calories}',
+                            style: const TextStyle(
+                              fontSize: 36,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.primary,
+                              letterSpacing: -1.2,
+                              height: 1,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            'kcal',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textSecondary,
+                              letterSpacing: -0.1,
+                            ),
+                          ),
+                          const Spacer(),
+                          if (_confidenceLabel(entry.confidence) != null)
+                            _confidenceChip(entry.confidence),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      // Three macro tiles, equally spaced. Bigger,
+                      // visually distinct, with a thin colored bar
+                      // showing the macro ratio.
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _macroTile(
+                              'Protein',
+                              entry.proteinGrams,
+                              AppColors.macroProtein,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _macroTile(
+                              'Carbs',
+                              entry.carbsGrams,
+                              AppColors.macroCarbs,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _macroTile(
+                              'Fat',
+                              entry.fatGrams,
+                              AppColors.macroFat,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _methodTag(String method) {
+    final (icon, label) = switch (method) {
+      'photo' => (Icons.camera_alt_rounded, 'Photo'),
+      'voice' => (Icons.mic_rounded, 'Voice'),
+      'fridge' => (Icons.kitchen_rounded, 'Fridge'),
+      'barcode' => (Icons.qr_code_rounded, 'Barcode'),
+      _ => (Icons.edit_note_rounded, 'Text'),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(50),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: AppColors.primary),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800,
+              color: AppColors.primary,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _macroTile(String label, int grams, Color color) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 9, 10, 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              color: color,
+              letterSpacing: 1.0,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.lastBaseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                '$grams',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.textPrimary,
+                  letterSpacing: -0.4,
+                  height: 1,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              const SizedBox(width: 2),
+              Text(
+                'g',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textHint,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -366,36 +475,6 @@ class CalianaBubble extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  Widget _macroPill(String label, int grams, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(7),
-      ),
-      child: Text(
-        '$label ${grams}g',
-        style: TextStyle(
-          fontSize: 9,
-          fontWeight: FontWeight.w800,
-          color: color,
-          letterSpacing: 0.2,
-        ),
-      ),
-    );
-  }
-
-  Widget _methodIcon(String method) {
-    final icon = switch (method) {
-      'photo' => Icons.camera_alt_rounded,
-      'voice' => Icons.mic_rounded,
-      'fridge' => Icons.kitchen_rounded,
-      'barcode' => Icons.qr_code_rounded,
-      _ => Icons.text_fields_rounded,
-    };
-    return Icon(icon, size: 11, color: AppColors.textHint);
   }
 
   Widget _voiceButton() {

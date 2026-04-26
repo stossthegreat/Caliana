@@ -5,7 +5,6 @@ import { fetchParallel } from '../services/fetcher.js';
 import { extractRecipeFromHtml } from '../services/jsonld.js';
 import { isBlocked } from '../data/domains.js';
 import { config } from '../config.js';
-import { getOpenAI } from '../services/openai_client.js';
 
 interface MealSuggestRequest {
   /** Free-form ask: "high protein dinner", "quick lunch", "light clean meal" */
@@ -67,20 +66,12 @@ export async function registerMealSuggestRoute(
           userContext,
         );
 
-        if (ideas.length > 0) {
-          return { ideas };
-        }
-
-        // Backstop: if the JSON-LD pipeline returned nothing usable
-        // (search blocked, sites without schema.org markup, etc.),
-        // fall back to a quick GPT-generated idea so the UI still has
-        // something to render.
-        const fallback = await fallbackGptIdeas(
-          ask.trim(),
-          remainingKcal,
-          userContext,
-        );
-        return { ideas: fallback };
+        // We deliberately DO NOT fall back to GPT-only slim ideas
+        // here. Mixing image-rich recipe cards with bare-text cards
+        // looked cheap and inconsistent. If we can't scrape real
+        // recipes with images, return [] and let Flutter show a
+        // Caliana chat reply instead.
+        return { ideas };
       } catch (err) {
         req.log.error({ err }, 'meal-suggest failed');
         return reply.status(500).send({
@@ -102,17 +93,19 @@ async function suggestRealRecipes(
   remainingKcal: number | undefined,
   userContext: string | undefined,
 ): Promise<RichMealIdea[]> {
-  // Build a search query that biases Google toward real recipe pages.
-  // Budget hint nudges results to the right calorie range.
+  // Build a search query that biases Google toward real recipe pages
+  // with photos. Budget hint nudges results to the right calorie range.
   const budgetHint = typeof remainingKcal === 'number' && remainingKcal > 0
     ? ` under ${Math.round(remainingKcal)} calories`
     : '';
-  const query = `${ask}${budgetHint} recipe`;
+  const query = `${ask}${budgetHint} recipe with photo`;
 
-  const searchResults = await webSearch(query, 12);
+  // Pull a wide net so the image-only filter still has plenty to pick
+  // from after low-quality recipes are stripped.
+  const searchResults = await webSearch(query, 20);
   const candidates = searchResults
     .filter((r) => r.link && !isBlocked(r.link))
-    .slice(0, Math.max(config.maxCandidates, 8));
+    .slice(0, Math.max(config.maxCandidates, 14));
 
   if (candidates.length === 0) return [];
 
@@ -127,19 +120,66 @@ async function suggestRealRecipes(
 
   if (recipes.length === 0) return [];
 
-  // Rank: prefer recipes with images + a calorie estimate close to budget,
-  // then by rating × log(reviewCount + 1) so popularity helps but a
-  // 5-star recipe with one review doesn't trump a 4.7 with thousands.
+  // STRICT: only image-rich recipes. Inconsistent cards (some hero
+  // image, some bare text) read as cheap. If we can't find any with
+  // images, return [] and let the Flutter UI fall through to chat.
+  let pool = recipes.filter((r) => r.image && r.image.length > 0);
+  if (pool.length === 0) return [];
+
+  // Intent-aware filtering: when the user asked for "high protein",
+  // strip dishes that obviously don't deliver (plain salads with no
+  // protein number, dessert recipes, etc.) BEFORE ranking. This stops
+  // the "I asked high protein, got Caesar salad" complaint.
+  const askLower = ask.toLowerCase();
+  const wantsHighProtein =
+    askLower.includes('high protein') ||
+    askLower.includes('high-protein') ||
+    askLower.includes('protein-rich');
+
+  if (wantsHighProtein) {
+    const proteinFiltered = pool.filter((r) => isLikelyHighProtein(r));
+    if (proteinFiltered.length >= 1) pool = proteinFiltered;
+    // If filter wipes everything (e.g. JSON-LD has no nutrition data),
+    // keep the original pool but the scorer below will still demote
+    // obvious low-protein dishes by name.
+  }
+
   const target = remainingKcal && remainingKcal > 0 ? remainingKcal : 0;
-  const scored = recipes
-    .map((r) => ({ r, score: scoreRecipe(r, target) }))
+  const scored = pool
+    .map((r) => ({ r, score: scoreRecipe(r, target, wantsHighProtein) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 3);
 
   return scored.map(({ r }) => recipeToMealIdea(r));
 }
 
-function scoreRecipe(r: Recipe, target: number): number {
+function isLikelyHighProtein(r: Recipe): boolean {
+  // 1. JSON-LD told us protein in grams: trust it. >= 25g/serving qualifies.
+  const proteinGrams = parseGrams(r.nutrition?.protein);
+  if (proteinGrams >= 25) return true;
+  // 2. JSON-LD has nutrition but protein is low — DON'T trust the title alone.
+  if (r.nutrition?.protein && proteinGrams < 25) return false;
+  // 3. No nutrition data at all: name-based heuristic.
+  const name = r.title.toLowerCase();
+  const proteinHits = [
+    'chicken', 'salmon', 'tuna', 'turkey', 'beef', 'steak', 'pork',
+    'shrimp', 'prawn', 'cod', 'tofu', 'tempeh', 'lentil', 'chickpea',
+    'protein', 'omelette', 'omelet', 'eggs',
+  ];
+  const proteinDodges = [
+    'pasta salad', 'caesar salad', 'green salad', 'side salad',
+    'fruit salad', 'cookie', 'cake', 'brownie', 'pancake',
+    'doughnut', 'donut', 'smoothie', 'oatmeal',
+  ];
+  if (proteinDodges.some((w) => name.includes(w))) return false;
+  return proteinHits.some((w) => name.includes(w));
+}
+
+function scoreRecipe(
+  r: Recipe,
+  target: number,
+  wantsHighProtein: boolean,
+): number {
   let s = 0;
   if (r.image) s += 4; // Hero image is non-negotiable for the new card.
   if (r.rating.value >= 4.5) s += 3;
@@ -152,6 +192,30 @@ function scoreRecipe(r: Recipe, target: number): number {
     else if (diff > 0.80) s -= 3;
   }
   s += (r.source.authority || 0) / 25;
+
+  if (wantsHighProtein) {
+    const grams = parseGrams(r.nutrition?.protein);
+    if (grams >= 35) s += 5;
+    else if (grams >= 25) s += 3;
+    else if (grams > 0 && grams < 15) s -= 5; // Demote known low-protein.
+    const name = r.title.toLowerCase();
+    if (
+      name.includes('chicken') ||
+      name.includes('salmon') ||
+      name.includes('steak') ||
+      name.includes('tuna') ||
+      name.includes('protein')
+    ) {
+      s += 2;
+    }
+    if (
+      name.includes('caesar salad') ||
+      name.includes('pasta salad') ||
+      name.includes('green salad')
+    ) {
+      s -= 4;
+    }
+  }
   return s;
 }
 
@@ -183,69 +247,3 @@ function parseGrams(s: string | undefined): number {
   return Math.round(parseFloat(m[0]));
 }
 
-/**
- * If the real-recipe pipeline returned nothing, hand the user something
- * rather than an empty card. GPT-generated ideas: name + macros only,
- * no image/rating/link. The card still renders; it just looks slimmer.
- */
-async function fallbackGptIdeas(
-  ask: string,
-  remainingKcal: number | undefined,
-  userContext: string | undefined,
-): Promise<RichMealIdea[]> {
-  const budgetLine = typeof remainingKcal === 'number'
-    ? `BUDGET: ~${Math.max(100, remainingKcal)} kcal remaining for today.`
-    : 'BUDGET: unspecified — aim for 400-600 kcal.';
-
-  const system = `Return 2 real, common dishes that fit the user's ask and BUDGET.
-Return JSON only:
-{"ideas":[{"name":"3-5 word dish name","calories":420,"protein":38,"carbs":22,"fat":16,"ingredients":["...","..."],"steps":["...","..."]}]}
-RULES:
-- 2 ideas. Real, common dishes (chicken caesar salad, tuna pasta bake) — never invented fusion names.
-- Calories must be realistic for ONE serving. Macros sum within 15% of calories.
-- 4-8 ingredient lines with quantities. 3-5 short imperative steps.
-- Round calories to 10. UK measurements where natural.`;
-
-  const user = [
-    budgetLine,
-    userContext ? `USER: ${userContext}` : '',
-    `ASK: ${ask}`,
-  ].filter(Boolean).join('\n');
-
-  const response = await getOpenAI().chat.completions.create({
-    model: config.openaiModel,
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: user },
-    ],
-    temperature: 0.3,
-    max_tokens: 700,
-    response_format: { type: 'json_object' },
-  });
-  const raw = response.choices[0]?.message?.content || '{"ideas":[]}';
-  const parsed = JSON.parse(raw) as { ideas?: Partial<RichMealIdea>[] };
-  if (!parsed.ideas || !Array.isArray(parsed.ideas)) return [];
-  return parsed.ideas.slice(0, 2).map((i) => ({
-    name: String(i.name || 'Meal idea'),
-    calories: clampInt(i.calories, 0, 2000),
-    protein: clampInt(i.protein, 0, 200),
-    carbs: clampInt(i.carbs, 0, 300),
-    fat: clampInt(i.fat, 0, 200),
-    ingredients: cleanStringList(i.ingredients, 8),
-    steps: cleanStringList(i.steps, 6),
-  }));
-}
-
-function cleanStringList(raw: unknown, max: number): string[] {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .map((x) => (typeof x === 'string' ? x.trim() : ''))
-    .filter((s) => s.length > 0 && s.length <= 200)
-    .slice(0, max);
-}
-
-function clampInt(v: unknown, min: number, max: number): number {
-  const n = typeof v === 'number' ? v : Number(v);
-  if (!Number.isFinite(n)) return 0;
-  return Math.max(min, Math.min(max, Math.round(n)));
-}
