@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'theme/app_theme.dart';
-import 'screens/today_screen.dart';
+import 'screens/main_tabs.dart';
 import 'screens/onboarding_screen.dart';
 import 'services/user_profile_service.dart';
 import 'services/app_settings_service.dart';
 import 'services/usage_service.dart';
 import 'services/day_log_service.dart';
 import 'services/saved_meals_service.dart';
+import 'services/plan_service.dart';
 import 'services/analytics_service.dart';
 
 void main() async {
@@ -40,6 +41,7 @@ void main() async {
       UsageService.instance.load(),
       DayLogService.instance.load(),
       SavedMealsService.instance.load(),
+      PlanService.instance.load(),
       OnboardingScreen.hasBeenSeen().then((v) => onboardingSeen = v),
     ]);
     debugPrint('✅ Caliana services loaded');
@@ -73,7 +75,7 @@ class CalianaApp extends StatelessWidget {
       title: 'Caliana',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,
-      home: showOnboarding ? const _OnboardingGate() : const TodayScreen(),
+      home: showOnboarding ? const _OnboardingGate() : const MainTabs(),
     );
   }
 }
@@ -88,7 +90,7 @@ class _OnboardingGate extends StatelessWidget {
       onComplete: () {
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(
-            pageBuilder: (_, __, ___) => const TodayScreen(),
+            pageBuilder: (_, __, ___) => const MainTabs(),
             transitionsBuilder: (_, animation, __, child) {
               return FadeTransition(opacity: animation, child: child);
             },
