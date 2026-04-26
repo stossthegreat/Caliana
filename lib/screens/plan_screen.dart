@@ -191,6 +191,39 @@ class _PlanScreenState extends State<PlanScreen> {
     );
   }
 
+  /// "Monday" / "Tuesday" — used in damage control copy.
+  String _shortWeekday(DateTime d) {
+    const wd = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+    return wd[(d.weekday - 1) % 7];
+  }
+
+  /// "Monday 27 Apr" — used in the Tomorrow card header.
+  String _shortDateLabel(DateTime d) {
+    const mo = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${_shortWeekday(d)} ${d.day} ${mo[d.month - 1]}';
+  }
+
   String _formatLongDate(DateTime d) {
     const wd = [
       'Monday',
@@ -338,7 +371,9 @@ class _PlanScreenState extends State<PlanScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header strip
+          // Header strip — labels the date so the user can see the
+          // plan is for tomorrow's actual weekday (e.g. "TOMORROW ·
+          // MONDAY 27 APR"), not just a vague "Tomorrow".
           Container(
             padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
             decoration: BoxDecoration(
@@ -360,15 +395,15 @@ class _PlanScreenState extends State<PlanScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Tomorrow',
+                        'TOMORROW · ${_shortDateLabel(_tomorrow).toUpperCase()}',
                         style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.white.withValues(alpha: 0.75),
-                          fontWeight: FontWeight.w800,
+                          fontSize: 10.5,
+                          color: Colors.white.withValues(alpha: 0.78),
+                          fontWeight: FontWeight.w900,
                           letterSpacing: 1.6,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       Text(
                         hasPlan
                             ? '$totalKcal kcal · ${totalProtein}g P'
@@ -497,10 +532,11 @@ class _PlanScreenState extends State<PlanScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // Damage Control — surfaces only when the user is over for today or
-  // the week. Anti-restriction by design: never recommends fasting,
-  // skipping meals, or compensating with exercise. Just calmly offers
-  // the rebuild plan ready to apply.
+  // Damage Control on the Plan tab — speaks ONLY about tomorrow. The
+  // user got here because something needs fixing in the future, not
+  // because they want a today-status report (Today tab handles that).
+  // Copy is anti-restriction: the rebuild ALREADY HAPPENED, the card
+  // just announces it.
   // ---------------------------------------------------------------------------
   Widget _damageControlCard() {
     final profile = UserProfileService.instance.profile;
@@ -509,6 +545,7 @@ class _PlanScreenState extends State<PlanScreen> {
     final todayDelta = today.totalCalories - goal;
     final weeklyDelta =
         DayLogService.instance.weeklyCalories - goal * 7;
+    final tomorrowName = _shortWeekday(_tomorrow);
 
     final String headline;
     final String body;
@@ -516,32 +553,29 @@ class _PlanScreenState extends State<PlanScreen> {
     final String ctaMode;
 
     if (todayDelta > goal * 0.4) {
-      // Today is gone — protect tomorrow.
-      headline = "Today's gone. Don't crash.";
+      headline = "Today's done. $tomorrowName is sorted.";
       body =
-          "${todayDelta} over goal already. Tomorrow is a clean reset — high protein, normal calories, no punishment. Want me to lay it out?";
-      ctaLabel = 'Plan tomorrow clean';
+          "+$todayDelta over today. I've already adjusted $tomorrowName to absorb it — protein-led, no crash. Plan ready below.";
+      ctaLabel = "Use $tomorrowName's plan";
       ctaMode = 'recovery';
     } else if (todayDelta > 200) {
-      // Today is salvageable.
-      final left = goal - today.totalCalories;
-      headline = "Bit over — still salvageable";
+      headline = "$tomorrowName eats lighter — sorted.";
       body =
-          "Slightly over today (${todayDelta} kcal). About ${left.abs()} room before bed if you go light. I can build a small dinner that lands you back.";
-      ctaLabel = 'Build a light dinner';
+          "+$todayDelta today. Tomorrow's plan absorbs it. High satiety, normal calories, no punishment.";
+      ctaLabel = "Use $tomorrowName's plan";
       ctaMode = 'recovery';
     } else if (weeklyDelta > 1500) {
-      headline = "Heavy week — proper rebuild";
+      headline = "Three-day rebuild — already drafted.";
       body =
-          "$weeklyDelta over for the week. Three to four days, protein-led, normal calories. We absorb it — no crash, no shame.";
-      ctaLabel = 'Build the rebuild';
+          "+$weeklyDelta this week. Next 3 days are protein-led at normal calories. We absorb it slowly — no shame, no crash.";
+      ctaLabel = "Use the rebuild";
       ctaMode = 'recovery';
     } else {
-      headline = "Bit over this week — easy fix";
       final perDay = (weeklyDelta / 3).round();
+      headline = "Trimmed -$perDay across the next 3 days.";
       body =
-          "$weeklyDelta over the week. Trim ~$perDay kcal across the next 3 days. Steady, not strict.";
-      ctaLabel = 'Build the next 3 days';
+          "+$weeklyDelta this week, easy fix. The next three days come in -$perDay kcal each. Steady, not strict.";
+      ctaLabel = "Use $tomorrowName's plan";
       ctaMode = 'recovery';
     }
 

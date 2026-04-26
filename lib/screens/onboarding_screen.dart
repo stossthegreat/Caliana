@@ -6,9 +6,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 import '../models/user_profile.dart';
 import '../services/user_profile_service.dart';
+import '../services/usage_service.dart';
 import '../services/analytics_service.dart';
 import '../widgets/aurora_background.dart';
 import '../widgets/character_card.dart';
+import 'paywall_screen.dart';
 
 /// Caliana's onboarding. 10 screens, ~90 sec.
 /// Captures everything needed to compute calorie + macro goals, plus
@@ -1220,14 +1222,38 @@ class _SoftPaywall extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _Title('Try Caliana Pro'),
-          const _Subtitle('3 days free. Cancel any time, two taps.'),
+          const _Subtitle(
+              'Unlimited everything. Annual: 7 days free, cancel any time.'),
           const SizedBox(height: 22),
-          _feature('🤳', 'Unlimited photo logging', 'Free tier: 1 a day'),
-          _feature('🗣️', 'Voice replies (ElevenLabs)', 'Hear Caliana out loud'),
-          _feature('📅', 'Multi-day rebuild plans', 'Fix a bad week, properly'),
-          _feature('🎨', 'Sunday recap share-card', 'Caliana wrap, exportable'),
+          _feature('🤳', 'Unlimited photo logging',
+              'Free tier caps at 1 photo a day'),
+          _feature('🗣️', 'Voice replies (ElevenLabs)',
+              'Hear Caliana out loud'),
+          _feature('📅', 'Multi-day rebuild plans',
+              'Go over today, she fixes tomorrow'),
+          _feature('🎨', 'Sunday recap share-card',
+              'Caliana wrap, exportable'),
           const Spacer(),
-          _PrimaryButton(label: 'Start 3-day free trial', onTap: onSubscribe),
+          _PrimaryButton(
+            label: 'See plans',
+            onTap: () async {
+              HapticFeedback.lightImpact();
+              // Open the real paywall so the user sees live store
+              // prices (annual w/ 7-day trial, monthly no trial) and
+              // the proper legal disclosure. Whether they buy or not,
+              // we finish onboarding when the paywall pops.
+              final purchased = await Navigator.of(context).push<bool>(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      const PaywallScreen(triggerText: 'onboarding'),
+                ),
+              );
+              if (purchased == true) {
+                await UsageService.instance.setPro(true);
+              }
+              onSubscribe();
+            },
+          ),
           const SizedBox(height: 8),
           GestureDetector(
             onTap: onContinueFree,

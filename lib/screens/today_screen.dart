@@ -623,6 +623,7 @@ class _TodayScreenState extends State<TodayScreen> {
                       // tab action. Today's reality is logged via snap
                       // / voice / text; suggestions here are just
                       // suggestions, not pre-commits.
+                      onSaveMeal: _saveMealFromIdea,
                     );
                   },
                 ),
@@ -705,23 +706,10 @@ class _TodayScreenState extends State<TodayScreen> {
       ),
     );
 
-    for (final idea in ideas) {
-      await SavedMealsService.instance.save(
-        SavedMeal(
-          id: 'sm_${now.millisecondsSinceEpoch}_${idea.name.hashCode}',
-          savedAt: now,
-          name: idea.name,
-          calories: idea.calories,
-          proteinGrams: idea.protein,
-          carbsGrams: idea.carbs,
-          fatGrams: idea.fat,
-          ingredients: idea.ingredients,
-          steps: idea.steps,
-          recipeLink: idea.link,
-          recipeSource: idea.source,
-        ),
-      );
-    }
+    // Don't auto-save the suggestions — the user chooses what to save
+    // via the Save button on each recipe card. Auto-save was filling
+    // their collection with every passing suggestion; explicit-save
+    // is the cleaner mental model.
 
     if (mounted) setState(() => _isThinking = false);
     _scrollToBottom();
@@ -1260,24 +1248,9 @@ class _TodayScreenState extends State<TodayScreen> {
       ),
     );
 
-    for (final idea in ideas) {
-      await SavedMealsService.instance.save(
-        SavedMeal(
-          id: 'sm_${cardNow.millisecondsSinceEpoch}_${idea.name.hashCode}',
-          savedAt: cardNow,
-          name: idea.name,
-          calories: idea.calories,
-          proteinGrams: idea.protein,
-          carbsGrams: idea.carbs,
-          fatGrams: idea.fat,
-          ingredients: idea.ingredients,
-          steps: idea.steps,
-          recipeLink: idea.link,
-          recipeSource: idea.source,
-          note: 'Caliana\'s fridge fix',
-        ),
-      );
-    }
+    // No auto-save here either — fridge fixes now follow the same
+    // explicit Save button rule as regular suggestions. Cleaner for
+    // the user, less clutter in their saved recipes.
 
     if (mounted) setState(() => _isThinking = false);
     _scrollToBottom();
@@ -1518,6 +1491,39 @@ class _TodayScreenState extends State<TodayScreen> {
     if (msg.foodEntry != null) {
       _openFoodEditSheet(msg.foodEntry!);
     }
+  }
+
+  /// Save a suggested meal into the user's Recipes Sheet. Triggered
+  /// by the explicit Save button on each recipe card — auto-save was
+  /// removed so the user only saves what they actually liked.
+  Future<void> _saveMealFromIdea(MealIdea idea) async {
+    HapticFeedback.lightImpact();
+    final now = DateTime.now();
+    await SavedMealsService.instance.save(
+      SavedMeal(
+        id: 'sm_${now.millisecondsSinceEpoch}_${idea.name.hashCode}',
+        savedAt: now,
+        name: idea.name,
+        calories: idea.calories,
+        proteinGrams: idea.protein,
+        carbsGrams: idea.carbs,
+        fatGrams: idea.fat,
+        ingredients: idea.ingredients,
+        steps: idea.steps,
+        recipeLink: idea.link,
+        recipeSource: idea.source,
+      ),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+      backgroundColor: const Color(0xFF0F172A),
+      duration: const Duration(seconds: 2),
+      content: Text(
+        'Saved ${idea.name} to your recipes.',
+        style: const TextStyle(
+            color: Colors.white, fontWeight: FontWeight.w600),
+      ),
+    ));
   }
 
   void _openFoodEditSheet(FoodEntry entry) {
