@@ -237,6 +237,58 @@ class CalianaService {
   }
 
   // ---------------------------------------------------------------------------
+  // Day plan — 4 meals (breakfast/lunch/dinner/snack) for a target day.
+  // Returns slot-tagged MealIdeas with images; the caller converts to
+  // PlannedMeal and persists via PlanService.
+  // ---------------------------------------------------------------------------
+  Future<List<MealIdea>> generateDayPlan({String mode = 'normal'}) async {
+    if (_baseUrl.isEmpty) return const [];
+    final profile = UserProfileService.instance.profile;
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$_baseUrl/api/plan-day'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'dailyCalorieGoal': profile.dailyCalorieGoal,
+              'dailyProteinGoal': profile.dailyProteinGrams,
+              'userContext': profile.toAgentContext(),
+              'tone': profile.tone,
+              'mode': mode,
+            }),
+          )
+          .timeout(const Duration(seconds: 45));
+      if (res.statusCode != 200) {
+        debugPrint('plan-day ${res.statusCode}: ${res.body}');
+        return const [];
+      }
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final list = (data['slots'] as List? ?? const []);
+      return list.map((e) {
+        final m = e as Map<String, dynamic>;
+        final idea = MealIdea.fromJson(m);
+        // Stash the slot in description so the caller can read it back
+        // (ChatMessage / PlannedMeal carries it explicitly).
+        return MealIdea(
+          name: idea.name,
+          calories: idea.calories,
+          protein: idea.protein,
+          carbs: idea.carbs,
+          fat: idea.fat,
+          ingredients: idea.ingredients,
+          steps: idea.steps,
+          imageUrl: idea.imageUrl,
+          description: m['slot'] as String?,
+          servings: 1,
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('plan-day error: $e');
+      return const [];
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Food parsing — text / voice transcript → FoodEntry
   // ---------------------------------------------------------------------------
   Future<FoodEntry?> parseFoodFromText(String text, {required String inputMethod}) async {
