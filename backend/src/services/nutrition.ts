@@ -133,8 +133,8 @@ export async function parseFromPhoto(
   const visionModel = 'gpt-4o';
 
   const userMessage = hint && hint.trim().length > 0
-    ? `Hint from the user: ${hint.trim()}`
-    : "Identify what's on the plate and estimate.";
+    ? `Hint from the user: ${hint.trim()}\n\nLook at the photo carefully. Describe the dish you actually see, then estimate. Don't default to "salad" — name the food.`
+    : "Look at the photo carefully. Describe the dish you actually see — pizza, cheesecake, pasta, whatever it is — then estimate. Don't default to a salad estimate just because the portion looks small.";
 
   const response = await getOpenAI().chat.completions.create({
     model: visionModel,
@@ -144,12 +144,22 @@ export async function parseFromPhoto(
         role: 'user',
         content: [
           { type: 'text', text: userMessage },
-          { type: 'image_url', image_url: { url: imageDataUrl } },
+          {
+            type: 'image_url',
+            image_url: {
+              url: imageDataUrl,
+              // Force high detail so GPT-4o actually parses the image
+              // pixels properly. Default 'auto' sometimes picks 'low'
+              // for compact uploads, which is why pizzas were coming
+              // back as salads.
+              detail: 'high',
+            },
+          },
         ],
       },
     ],
     temperature: 0.2,
-    max_tokens: 300,
+    max_tokens: 350,
     response_format: { type: 'json_object' },
   });
   const raw = response.choices[0]?.message?.content || '{}';

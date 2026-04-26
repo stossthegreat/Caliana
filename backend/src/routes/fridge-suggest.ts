@@ -148,7 +148,10 @@ RULES:
         role: 'user',
         content: [
           { type: 'text', text: userMessage },
-          { type: 'image_url', image_url: { url: imageDataUrl } },
+          {
+            type: 'image_url',
+            image_url: { url: imageDataUrl, detail: 'high' },
+          },
         ],
       },
     ],

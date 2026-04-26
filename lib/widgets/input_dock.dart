@@ -115,21 +115,22 @@ class _InputDockState extends State<InputDock>
                       )
                     : const SizedBox.shrink(),
               ),
-              // Action row — fridge | voice pill | snap-food.
+              // Action row — three circular blue buttons. The middle one
+              // is the mic FAB (bigger + pulsing). No labels — every
+              // user knows what a mic, fridge, and camera icon mean.
               Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   _sideAction(
                     icon: Icons.kitchen_rounded,
-                    label: 'Fridge',
                     onTap: widget.onFridge,
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(child: _voicePill()),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 28),
+                  _micFab(),
+                  const SizedBox(width: 28),
                   _sideAction(
                     icon: Icons.camera_alt_rounded,
-                    label: 'Snap',
                     onTap: widget.onCamera,
                   ),
                 ],
@@ -223,10 +224,11 @@ class _InputDockState extends State<InputDock>
     );
   }
 
-  /// The voice pill — dominant centerpiece. White, pill-shaped, with a
-  /// chat-bubble + mic icon. Tap to start/stop a voice turn; long-press to
-  /// hold-to-talk. Morphs into a Send button when the user has typed.
-  Widget _voicePill() {
+  /// The hero mic FAB. Solid brand-blue circle, pulsing glow when idle,
+  /// stronger glow + slight scale when recording. Mic icon (or stop /
+  /// arrow-up for send) only — no text. Tap to start/stop a voice turn,
+  /// long-press to hold-to-talk. Morphs into Send when typing.
+  Widget _micFab() {
     final showSend = _typing && _hasText;
     return GestureDetector(
       onTap: () {
@@ -255,77 +257,42 @@ class _InputDockState extends State<InputDock>
         animation: _pulseCtrl,
         builder: (context, _) {
           final t = _pulseCtrl.value;
-          final scale = widget.isRecording ? 1.04 : 1.0 + (t * 0.012);
-          final glow = widget.isRecording
-              ? 0.55
-              : 0.22 + (t * 0.18);
+          final scale = widget.isRecording ? 1.06 : 1.0 + (t * 0.025);
+          final glow = widget.isRecording ? 0.55 : 0.22 + (t * 0.22);
           return Transform.scale(
             scale: scale,
             child: Container(
-              height: 64,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              width: 76,
+              height: 76,
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(40),
-                border: Border.all(
-                  color: AppColors.primary.withValues(alpha: 0.22),
-                  width: 1.2,
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF5A8AFF), Color(0xFF2F6BFF), Color(0xFF1F4FE0)],
                 ),
                 boxShadow: [
                   BoxShadow(
                     color: AppColors.primary.withValues(alpha: glow),
-                    blurRadius: 26,
-                    spreadRadius: 1.5,
-                    offset: const Offset(0, 6),
+                    blurRadius: 28,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 8),
                   ),
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
+                    color: Colors.black.withValues(alpha: 0.10),
                     blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    offset: const Offset(0, 3),
                   ),
                 ],
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Chat-bubble badge with the active icon inside.
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(14),
-                        topRight: Radius.circular(14),
-                        bottomRight: Radius.circular(14),
-                        bottomLeft: Radius.circular(4),
-                      ),
-                    ),
-                    child: Icon(
-                      showSend
-                          ? Icons.arrow_upward_rounded
-                          : (widget.isRecording
-                              ? Icons.stop_rounded
-                              : Icons.mic_rounded),
-                      color: Colors.white,
-                      size: 21,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    showSend
-                        ? 'Send'
-                        : widget.isRecording
-                            ? 'Listening…'
-                            : 'Talk to Caliana',
-                    style: const TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.primary,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                ],
+              child: Icon(
+                showSend
+                    ? Icons.arrow_upward_rounded
+                    : (widget.isRecording
+                        ? Icons.stop_rounded
+                        : Icons.mic_rounded),
+                color: Colors.white,
+                size: 32,
               ),
             ),
           );
@@ -334,10 +301,10 @@ class _InputDockState extends State<InputDock>
     );
   }
 
-  /// Side action — circular blue button with a small label underneath.
+  /// Side action — circular blue gradient button matching the mic FAB,
+  /// just smaller. No label — the icon is the affordance.
   Widget _sideAction({
     required IconData icon,
-    required String label,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -345,44 +312,25 @@ class _InputDockState extends State<InputDock>
         HapticFeedback.lightImpact();
         onTap();
       },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFFFFFFF), Color(0xFFEFF4FF)],
-              ),
-              border: Border.all(
-                color: AppColors.primary.withValues(alpha: 0.18),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.10),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Icon(icon, color: AppColors.primary, size: 21),
+      child: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF5A8AFF), Color(0xFF2F6BFF)],
           ),
-          const SizedBox(height: 3),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textSecondary,
-              letterSpacing: -0.1,
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.30),
+              blurRadius: 16,
+              offset: const Offset(0, 5),
             ),
-          ),
-        ],
+          ],
+        ),
+        child: Icon(icon, color: Colors.white, size: 24),
       ),
     );
   }
