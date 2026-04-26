@@ -9,6 +9,7 @@ import 'services/usage_service.dart';
 import 'services/day_log_service.dart';
 import 'services/saved_meals_service.dart';
 import 'services/plan_service.dart';
+import 'services/recovery_autopilot.dart';
 import 'services/analytics_service.dart';
 
 void main() async {
@@ -45,6 +46,11 @@ void main() async {
       OnboardingScreen.hasBeenSeen().then((v) => onboardingSeen = v),
     ]);
     debugPrint('✅ Caliana services loaded');
+
+    // Watch the day log — when it crosses an overage threshold, this
+    // rebuilds tomorrow's plan in recovery mode automatically. The
+    // user logs reality; she fixes the future.
+    RecoveryAutopilot.instance.start();
 
     AnalyticsService.instance.logAppOpen();
 

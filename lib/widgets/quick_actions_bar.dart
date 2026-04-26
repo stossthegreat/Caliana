@@ -22,8 +22,13 @@ class QuickActionsBar extends StatelessWidget {
 
   const QuickActionsBar({super.key, required this.onTap});
 
+  // "Save tonight" is sharper than "Fix my day" — it tells the user
+  // exactly what tapping does (suggest dinner that lands you on
+  // target). "Plan tomorrow" lives in the bar so the user has a
+  // direct path into the Plan tab from any screen.
   static const actions = <QuickAction>[
-    QuickAction('fix_my_day', '⚡', 'Fix my day', primary: true),
+    QuickAction('save_tonight', '⚡', 'Save tonight', primary: true),
+    QuickAction('plan_tomorrow', '📅', 'Plan tomorrow'),
     QuickAction('log_meal', '🍝', 'Log meal'),
     QuickAction('high_protein', '🍗', 'High protein'),
     QuickAction('eat_clean', '🥗', 'Eat clean'),
