@@ -100,6 +100,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required bool audioPlayed,
   }) {
     final lines = <Widget>[];
+    final diag = diagnose;
 
     void status(String label, bool ok, {String? detail}) {
       lines.add(Padding(
