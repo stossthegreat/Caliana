@@ -244,21 +244,33 @@ function scoreRecipe(
 }
 
 function recipeToMealIdea(r: Recipe): RichMealIdea {
-  const cals = r.nutrition?.calories ?? 0;
-  // Scale ingredients down to a single portion so users can cook the
-  // card without doing maths in their head. JSON-LD nutrition is
-  // already per-serving; only the ingredient quantities are bulk.
   const original = r.servings && r.servings > 1 ? r.servings : 1;
   const factor = original > 1 ? 1 / original : 1;
+
+  // Calorie scaling — JSON-LD's nutrition.calories is *supposed* to be
+  // per serving, but lots of publishers encode the whole-recipe total.
+  // Detect the multi-serving total case (calories > 1200 AND servings
+  // > 1) and divide. Single-serving plates over 1200 kcal (e.g. a fast
+  // food meal) stay as-is.
+  const rawCals = r.nutrition?.calories ?? 0;
+  const looksLikeWholeRecipeTotal = rawCals > 1200 && original > 1;
+  const calsPerServing = looksLikeWholeRecipeTotal
+    ? Math.round(rawCals / original)
+    : Math.round(rawCals);
+
+  const scale = (g: number): number =>
+    looksLikeWholeRecipeTotal ? Math.round(g * factor) : g;
+
   const scaledIngredients = r.ingredients
     .slice(0, 12)
     .map((line) => (factor < 1 ? scaleIngredient(line, factor) : line));
+
   return {
     name: r.title,
-    calories: Math.round(cals),
-    protein: parseGrams(r.nutrition?.protein),
-    carbs: parseGrams(r.nutrition?.carbs),
-    fat: parseGrams(r.nutrition?.fat),
+    calories: calsPerServing,
+    protein: scale(parseGrams(r.nutrition?.protein)),
+    carbs: scale(parseGrams(r.nutrition?.carbs)),
+    fat: scale(parseGrams(r.nutrition?.fat)),
     ingredients: scaledIngredients,
     steps: r.instructions.slice(0, 8),
     servings: 1,

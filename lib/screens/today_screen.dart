@@ -1304,15 +1304,17 @@ class _TodayScreenState extends State<TodayScreen> {
     );
     final entry = await CalianaService.instance
         .parseFoodFromPhoto(path, hint: hint);
-    // ALWAYS show the food card with the photo. If GPT couldn't read it
-    // (network, timeout, dud response), we still drop a card with the
-    // photo + 0 kcal + low confidence so the user sees something they
-    // can tap-to-edit, not a silent disappearance.
+    // ALWAYS show the food card with the photo. If GPT couldn't read
+    // it (network, timeout, dud response), drop a card with the photo
+    // + 0 kcal + the actual failure reason so the user can see WHY
+    // and tap to correct.
+    final fallbackError = CalianaService.instance.lastFoodLogError ??
+        "Couldn't read the photo.";
     final FoodEntry rendered = entry ??
         FoodEntry(
           id: 'fe_${DateTime.now().millisecondsSinceEpoch}',
           timestamp: DateTime.now(),
-          name: 'Snapped meal',
+          name: 'Vision unavailable',
           calories: 0,
           proteinGrams: 0,
           carbsGrams: 0,
@@ -1320,7 +1322,7 @@ class _TodayScreenState extends State<TodayScreen> {
           inputMethod: 'photo',
           photoPath: path,
           confidence: 'low',
-          notes: "Couldn't read the photo. Tap to fill in.",
+          notes: '$fallbackError Tap to fill in manually.',
         );
     await DayLogService.instance.addEntry(rendered);
     await DayLogService.instance.addMessage(

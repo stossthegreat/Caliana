@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/food_entry.dart';
 import '../models/user_profile.dart';
@@ -210,7 +211,14 @@ class CalianaService {
         'POST',
         Uri.parse('$_baseUrl/api/fridge-suggest'),
       );
-      req.files.add(await http.MultipartFile.fromPath('photo', photoPath));
+      final fridgeMime = photoPath.toLowerCase().endsWith('.png')
+          ? MediaType('image', 'png')
+          : MediaType('image', 'jpeg');
+      req.files.add(await http.MultipartFile.fromPath(
+        'photo',
+        photoPath,
+        contentType: fridgeMime,
+      ));
       req.fields['remainingKcal'] = remaining.toString();
       req.fields['userContext'] = profile.toAgentContext();
 
@@ -279,14 +287,27 @@ class CalianaService {
         'POST',
         Uri.parse('$_baseUrl/api/log-photo'),
       );
-      req.files.add(await http.MultipartFile.fromPath('photo', photoPath));
+      // Force a JPEG content type — image_picker's MultipartFile.fromPath
+      // sometimes derives octet-stream which the backend's multipart
+      // parser can fall through, ending in an empty buffer.
+      final mime = photoPath.toLowerCase().endsWith('.png')
+          ? MediaType('image', 'png')
+          : MediaType('image', 'jpeg');
+      req.files.add(await http.MultipartFile.fromPath(
+        'photo',
+        photoPath,
+        contentType: mime,
+      ));
       if (hint != null && hint.isNotEmpty) req.fields['hint'] = hint;
 
       final streamed = await req.send().timeout(const Duration(seconds: 60));
       final res = await http.Response.fromStream(streamed);
       if (res.statusCode != 200) {
+        final brief = res.body.length > 200
+            ? '${res.body.substring(0, 200)}…'
+            : res.body;
         _lastFoodLogError =
-            'Couldn\'t read the photo. (${res.statusCode})';
+            'Vision failed (${res.statusCode}). $brief';
         debugPrint('parseFoodFromPhoto ${res.statusCode}: ${res.body}');
         return null;
       }
@@ -298,7 +319,7 @@ class CalianaService {
       );
     } catch (e) {
       debugPrint('parseFoodFromPhoto error: $e');
-      _lastFoodLogError = 'Couldn\'t read the photo — check connection';
+      _lastFoodLogError = 'Couldn\'t reach vision: $e';
       return null;
     }
   }
