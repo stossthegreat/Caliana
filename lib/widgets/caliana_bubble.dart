@@ -280,7 +280,7 @@ class CalianaBubble extends StatelessWidget {
                       // The calorie number is the hero — big, tabular,
                       // brand-blue. Same scale Cal AI / Pingo lead with.
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.lastBaseline,
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
                         textBaseline: TextBaseline.alphabetic,
                         children: [
                           Text(
@@ -406,7 +406,7 @@ class CalianaBubble extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.lastBaseline,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
