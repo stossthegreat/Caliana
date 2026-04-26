@@ -808,8 +808,12 @@ class _TodayScreenState extends State<TodayScreen> {
     setState(() => _isThinking = true);
 
     if (_looksLikeFoodLog(text)) {
+      // If "log it" with no food name in this message, find the food
+      // in the previous user message instead. Stops the "log it →
+      // 'log it then' → user has to repeat" loop.
+      final parseInput = _resolveLogTarget(text);
       final entry = await CalianaService.instance
-          .parseFoodFromText(text, inputMethod: 'text');
+          .parseFoodFromText(parseInput, inputMethod: 'text');
       if (entry != null) {
         await DayLogService.instance.addEntry(entry);
         await DayLogService.instance.addMessage(
@@ -889,28 +893,101 @@ class _TodayScreenState extends State<TodayScreen> {
   // day, three burgers and a meltdown" from being parsed as a meal.
   bool _looksLikeFoodLog(String text) {
     final t = text.toLowerCase().trim();
-    if (t.length > 140) return false; // Long rambles are not food logs.
+    if (t.isEmpty) return false;
+    if (t.length > 200) return false; // Long rants aren't food logs.
 
+    // 1. Explicit log commands always win — "log it", "track that", etc.
+    //    The user is begging us to log; never make them ask twice.
+    const logCommands = [
+      'log it', 'log this', 'log that', 'log them',
+      'log my', 'log the', 'log a ', 'log an ',
+      'track it', 'track this', 'track that',
+      'add it', 'add that', 'add this',
+      'yes log', 'just log', 'please log',
+    ];
+    if (logCommands.any(t.contains)) return true;
+
+    // 2. Logging verbs anywhere in the message — covers the long tail
+    //    of dishes ("roast dinner", "biryani", "fry-up", "kebab")
+    //    without us maintaining a dish dictionary the user can't see.
     const verbs = [
-      'ate ', 'had ', 'eating ', 'just had ', 'snacked ', 'drank ',
-      'just ate', 'just drank', 'i ate', 'i had', 'i drank',
+      'i ate ', 'i had ', 'i drank ', 'i snacked',
+      'just ate', 'just had', 'just drank', 'just snacked',
+      'ate ', 'had ', 'drank ', 'snacked',
+      'eating ', 'having ', 'drinking ',
+      'for breakfast', 'for lunch', 'for dinner', 'for tea',
+      'for brunch', 'for pudding', 'as a snack',
     ];
-    const nouns = [
-      'salad', 'pizza', 'burger', 'rice', 'pasta', 'chicken', 'sandwich',
-      'coffee', 'apple', 'banana', 'eggs', 'toast', 'soup', 'steak',
-      'fries', 'chips', 'cookie', 'cake', 'biscuit', 'yogurt', 'smoothie',
-      'protein', 'wrap', 'bowl', 'noodles', 'curry', 'fish', 'ramen',
-      'cheesecake', 'doughnut', 'donut', 'croissant', 'porridge', 'oats',
+    if (verbs.any(t.contains)) return true;
+
+    // 3. Explicit quantity ("400 kcal", "200g rice", "500ml beer").
+    if (RegExp(r'\b\d+\s?(kcal|cal|calories|g|ml|oz|lbs?)\b').hasMatch(t)) {
+      return true;
+    }
+
+    // 4. Bare meal-name fall-through for phrases that name a dish
+    //    without a verb ("roast dinner", "six cheesecakes", "kebab").
+    //    Tight length cap so a long rant about cheesecakes doesn't fire.
+    const foodWords = [
+      // Mains
+      'roast dinner', 'sunday roast', 'fry up', 'fry-up', 'full english',
+      'kebab', 'biryani', 'curry', 'stew', 'casserole',
+      'stir fry', 'stir-fry', 'lasagna', 'lasagne', 'shepherds pie',
+      'cottage pie', 'fish and chips', 'pad thai', 'tikka', 'masala',
+      'salad', 'pizza', 'burger', 'sandwich', 'wrap', 'bowl',
+      'pasta', 'noodles', 'ramen', 'sushi', 'taco', 'burrito',
+      'rice', 'risotto', 'paella', 'omelette', 'omelet', 'frittata',
+      'soup', 'broth', 'chowder', 'porridge', 'oats', 'oatmeal',
+      'toast', 'bagel', 'pancake', 'waffle', 'crepe',
+      'chicken', 'steak', 'salmon', 'tuna', 'fish',
+      // Snacks / desserts
+      'cheesecake', 'cake', 'doughnut', 'donut', 'croissant',
+      'cookie', 'biscuit', 'brownie', 'muffin', 'scone',
+      'chocolate', 'crisps', 'chips', 'fries', 'nuts',
+      'apple', 'banana', 'orange', 'berries', 'grapes', 'fruit',
+      // Drinks
+      'coffee', 'latte', 'cappuccino', 'espresso', 'flat white',
+      'tea', 'smoothie', 'juice', 'beer', 'wine', 'lager',
+      'pint', 'gin', 'vodka', 'whisky', 'cocktail',
     ];
+    if (t.length < 80 && foodWords.any(t.contains)) return true;
 
-    final hasVerb = verbs.any(t.contains);
-    final hasNoun = nouns.any(t.contains);
-    final hasQuantity = RegExp(r'\b\d+\s?(kcal|cal|calories|g)\b').hasMatch(t);
+    // 5. Number + noun: "6 cheesecakes", "two burgers", "3 coffees".
+    //    Catches the common shorthand that has no verb but is clearly
+    //    a log ("six cheesecakes", "2 pints").
+    final hasCount = RegExp(
+      r'\b(\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|few|several)\s+\w',
+    ).hasMatch(t);
+    if (hasCount && t.length < 80 && foodWords.any(t.contains)) return true;
 
-    // Verb + noun is the strong signal. Quantity alone also counts
-    // ("400 kcal protein bar"). Noun alone is too weak — "burger" inside
-    // a complaint doesn't mean they ate one.
-    return (hasVerb && hasNoun) || hasQuantity;
+    return false;
+  }
+
+  // When the user fires "log it" / "log that" with no food name in
+  // the same message, walk back through today's chat for the most
+  // recent user message that named a food and use THAT for parsing.
+  String _resolveLogTarget(String currentText) {
+    final t = currentText.toLowerCase().trim();
+    final stripped = t
+        .replaceAll(RegExp(r'\b(yes|please|just|now)\b'), '')
+        .replaceAll(
+            RegExp(r'\blog\s+(it|this|that|them|my|the|a|an)\b'), '')
+        .replaceAll(RegExp(r'\btrack\s+(it|this|that)\b'), '')
+        .trim();
+    if (stripped.length >= 8) return currentText;
+
+    final messages = DayLogService.instance.today.messages;
+    for (var i = messages.length - 1; i >= 0; i--) {
+      final m = messages[i];
+      if (!m.isUser) continue;
+      if (m.text.toLowerCase().trim() == t) continue;
+      final mLower = m.text.toLowerCase();
+      final isJustCommand = mLower.length < 22 &&
+          (mLower.contains('log ') || mLower.contains('track '));
+      if (isJustCommand) continue;
+      return m.text;
+    }
+    return currentText;
   }
 
   /// Bottom sheet that lets the user pick whether to shoot a fresh photo
@@ -1263,8 +1340,9 @@ class _TodayScreenState extends State<TodayScreen> {
         ),
       );
       if (_looksLikeFoodLog(text)) {
+        final parseInput = _resolveLogTarget(text);
         final entry = await CalianaService.instance
-            .parseFoodFromText(text, inputMethod: 'voice');
+            .parseFoodFromText(parseInput, inputMethod: 'voice');
         if (entry != null) {
           await DayLogService.instance.addEntry(entry);
           await DayLogService.instance.addMessage(
