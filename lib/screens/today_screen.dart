@@ -205,19 +205,59 @@ class _TodayScreenState extends State<TodayScreen> {
     super.dispose();
   }
 
+  bool _voiceErrorShown = false;
+
   // Fire-and-forget: synthesize Caliana's reply via ElevenLabs and play it.
   // Silently no-ops if the backend's voice route or API key isn't ready —
-  // the text bubble already shipped, so the user still sees the reply.
+  // but the FIRST failure each session surfaces a SnackBar so the user
+  // knows voice is silent and can tap into Settings -> Test voice for a
+  // full diagnostic instead of wondering why nothing's happening.
   Future<void> _speak(String text) async {
     if (text.trim().isEmpty) return;
     try {
       final path = await CalianaService.instance.synthesizeVoice(text);
-      if (path == null || !mounted) return;
+      if (!mounted) return;
+      if (path == null) {
+        _maybeShowVoiceErrorSnackbar();
+        return;
+      }
       await _voicePlayer.stop();
       await _voicePlayer.play(DeviceFileSource(path));
     } catch (e) {
       debugPrint('Caliana speak error: $e');
+      _maybeShowVoiceErrorSnackbar();
     }
+  }
+
+  void _maybeShowVoiceErrorSnackbar() {
+    if (_voiceErrorShown || !mounted) return;
+    _voiceErrorShown = true;
+    final err = CalianaService.instance.lastVoiceError;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    messenger.showSnackBar(
+      SnackBar(
+        backgroundColor: const Color(0xFF0F172A),
+        duration: const Duration(seconds: 6),
+        action: SnackBarAction(
+          label: 'Diagnose',
+          textColor: Colors.white,
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const SettingsScreen(),
+              ),
+            );
+          },
+        ),
+        content: Text(
+          err == null
+              ? "Voice silent — Settings → Test voice to diagnose."
+              : "Voice silent: ${err.length > 80 ? '${err.substring(0, 80)}…' : err}",
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
   }
 
   void _onDataChange() {

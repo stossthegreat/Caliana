@@ -1,3 +1,4 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -5,6 +6,7 @@ import '../theme/app_theme.dart';
 import '../models/user_profile.dart';
 import '../services/user_profile_service.dart';
 import '../services/app_settings_service.dart';
+import '../services/caliana_service.dart';
 import '../services/usage_service.dart';
 import '../services/day_log_service.dart';
 import '../widgets/aurora_background.dart';
@@ -27,6 +29,8 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late UserProfile _draft;
   late TextEditingController _nameController;
+  final AudioPlayer _testPlayer = AudioPlayer();
+  bool _voiceTestLoading = false;
 
   @override
   void initState() {
@@ -38,7 +42,190 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _testPlayer.dispose();
     super.dispose();
+  }
+
+  /// End-to-end voice test. Hits /api/diagnose first to surface a
+  /// human-readable diagnosis (deploy stale? key invalid? quota?),
+  /// then synthesises a sample line and plays it. Whatever fails,
+  /// the user sees a dialog with the exact reason.
+  Future<void> _runVoiceTest() async {
+    HapticFeedback.lightImpact();
+    setState(() => _voiceTestLoading = true);
+    try {
+      // Step 1: diagnose backend reachability + key health.
+      Map<String, dynamic>? diag;
+      String? diagError;
+      try {
+        diag = await CalianaService.instance.diagnose();
+      } catch (e) {
+        diagError = e.toString();
+      }
+
+      // Step 2: actually synthesise + play a sample line.
+      String? voiceError;
+      String? audioPath;
+      try {
+        audioPath = await CalianaService.instance.testVoice();
+      } catch (e) {
+        voiceError = e.toString();
+      }
+
+      if (audioPath != null) {
+        try {
+          await _testPlayer.stop();
+          await _testPlayer.play(DeviceFileSource(audioPath));
+        } catch (e) {
+          voiceError = 'Audio playback failed: $e';
+        }
+      }
+
+      if (!mounted) return;
+      _showVoiceDiagnosticDialog(
+        diagnose: diag,
+        diagError: diagError,
+        voiceError: voiceError,
+        audioPlayed: audioPath != null && voiceError == null,
+      );
+    } finally {
+      if (mounted) setState(() => _voiceTestLoading = false);
+    }
+  }
+
+  void _showVoiceDiagnosticDialog({
+    required Map<String, dynamic>? diagnose,
+    required String? diagError,
+    required String? voiceError,
+    required bool audioPlayed,
+  }) {
+    final lines = <Widget>[];
+
+    void status(String label, bool ok, {String? detail}) {
+      lines.add(Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              ok
+                  ? Icons.check_circle_rounded
+                  : Icons.cancel_rounded,
+              color: ok ? const Color(0xFF22C55E) : AppColors.accent,
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13.5,
+                    ),
+                  ),
+                  if (detail != null && detail.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        detail,
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 11.5,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ));
+    }
+
+    if (diag == null) {
+      status('Backend reachable', false,
+          detail: diagError ?? 'No response. The Caliana backend is offline or'
+              ' the URL in app settings is wrong.');
+    } else {
+      status('Backend reachable', true);
+      final checks = (diag['checks'] as Map<String, dynamic>?) ?? {};
+      final eleven = checks['elevenlabs'] as Map<String, dynamic>?;
+      if (eleven == null) {
+        status('ElevenLabs route', false,
+            detail: 'The deployed backend is missing the ElevenLabs check. Railway is on a stale deploy — redeploy the latest branch and try again.');
+      } else {
+        final ok = eleven['ok'] == true;
+        status('ElevenLabs API key', ok,
+            detail: ok
+                ? 'Key valid. Latency ${eleven['latencyMs']}ms.'
+                : (eleven['error']?.toString() ?? 'Unknown ElevenLabs error'));
+        final perTone =
+            eleven['perToneVoicesSet'] as Map<String, dynamic>?;
+        if (perTone != null) {
+          final lines = <String>[];
+          if (perTone['polite'] == true) lines.add('Polite ✓');
+          if (perTone['cheeky'] == true) lines.add('Cheeky ✓');
+          if (perTone['savage'] == true) lines.add('Savage ✓');
+          if (lines.isNotEmpty) {
+            status('Per-tone voice IDs', true,
+                detail: lines.join('  ·  '));
+          }
+        }
+      }
+      final openai = checks['openai'] as Map<String, dynamic>?;
+      if (openai != null) {
+        status('OpenAI key', openai['ok'] == true,
+            detail: openai['ok'] == true
+                ? 'Key valid. Latency ${openai['latencyMs']}ms.'
+                : (openai['error']?.toString() ?? 'Unknown OpenAI error'));
+      }
+    }
+
+    status('Voice synthesis + playback', audioPlayed,
+        detail: audioPlayed
+            ? 'Sample played. If you didn\'t hear it, check device volume.'
+            : (voiceError ?? 'Voice synthesis failed.'));
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Voice diagnostic',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w900,
+            fontSize: 18,
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: lines,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'Close',
+              style: TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _save() async {
@@ -95,6 +282,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         'Daily target',
                         Icons.local_fire_department_rounded,
                         _targetBlock(),
+                      ),
+                      const SizedBox(height: 22),
+                      _sectionLabel('Diagnostics'),
+                      const SizedBox(height: 8),
+                      _linkRow(
+                        Icons.record_voice_over_rounded,
+                        _voiceTestLoading ? 'Testing voice…' : 'Test voice',
+                        AppColors.primary,
+                        _voiceTestLoading ? () {} : _runVoiceTest,
+                        sub: _voiceTestLoading
+                            ? 'Hitting backend + ElevenLabs…'
+                            : 'Run a full check and play a sample line',
                       ),
                       const SizedBox(height: 22),
                       _sectionLabel('Legal & support'),
