@@ -7,19 +7,12 @@ import '../services/analytics_service.dart';
 import '../services/revenuecat_service.dart';
 import '../widgets/aurora_background.dart';
 
-/// Caliana Pro paywall.
+/// Caliana Pro paywall — one static page.
 ///
-/// One offering, two products: monthly (no trial) and annual (with
-/// the 7-day free trial). Single entitlement: `pro`. Wired to
-/// RevenueCat — purchases flow through Purchases.purchasePackage; the
-/// customer-info listener in RevenueCatService syncs the local Pro
-/// flag.
-///
-/// Visual design: brand-blue everywhere, identically-sized monthly
-/// + yearly cards, staggered fade-in for feature rows, placeholder
-/// prices that look intentional (not "Loading…") while RevenueCat
-/// fetches the live offering. All legal links route to the GitHub
-/// Pages site so reviewers (and users) can read them in-app.
+/// Whole sell fits on a single screen: hero, four feature rows, two
+/// identical price cards (monthly + annual), CTA, and a small fixed-
+/// height inner-scrollable area for Apple's required disclosure and
+/// legal links. Nothing else scrolls.
 class PaywallScreen extends StatefulWidget {
   final String? triggerText;
   const PaywallScreen({super.key, this.triggerText});
@@ -29,7 +22,7 @@ class PaywallScreen extends StatefulWidget {
 }
 
 class _PaywallScreenState extends State<PaywallScreen>
-    with TickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
   static const _termsUrl =
       'https://stossthegreat.github.io/Caliana/terms.html';
   static const _privacyUrl =
@@ -45,7 +38,6 @@ class _PaywallScreenState extends State<PaywallScreen>
   Package? _annual;
   Package? _selected;
 
-  /// Stagger controller for the feature rows.
   late final AnimationController _featuresCtrl;
 
   @override
@@ -77,9 +69,7 @@ class _PaywallScreenState extends State<PaywallScreen>
       await svc.refreshOffering();
     }
     final offering = svc.currentOffering;
-    if (offering == null || !mounted) {
-      return;
-    }
+    if (offering == null || !mounted) return;
     setState(() {
       _monthly = offering.monthly ??
           offering.availablePackages
@@ -91,8 +81,6 @@ class _PaywallScreenState extends State<PaywallScreen>
               .where((p) => p.packageType == PackageType.annual)
               .cast<Package?>()
               .firstWhere((_) => true, orElse: () => null);
-      // Default selection: ANNUAL — that's where the 7-day free trial
-      // lives. Monthly is a no-trial option.
       _selected = _annual ?? _monthly;
     });
   }
@@ -105,20 +93,12 @@ class _PaywallScreenState extends State<PaywallScreen>
   String get _ctaLabel {
     if (_busy) return 'Working…';
     final pkg = _selected;
-    if (pkg == null) {
-      return 'Start 7-day free trial';
-    }
-    final priceString = pkg.storeProduct.priceString;
-    if (_hasIntroTrial(pkg)) {
-      return 'Start 7-day free trial';
-    }
-    if (pkg.packageType == PackageType.annual) {
-      return 'Continue — $priceString / year';
-    }
-    if (pkg.packageType == PackageType.monthly) {
-      return 'Continue — $priceString / month';
-    }
-    return 'Continue — $priceString';
+    if (pkg == null) return 'Start 7-day free trial';
+    final price = pkg.storeProduct.priceString;
+    if (_hasIntroTrial(pkg)) return 'Start 7-day free trial';
+    if (pkg.packageType == PackageType.annual) return 'Continue — $price / yr';
+    if (pkg.packageType == PackageType.monthly) return 'Continue — $price / mo';
+    return 'Continue — $price';
   }
 
   String _selectedDisclosure() {
@@ -156,36 +136,22 @@ class _PaywallScreenState extends State<PaywallScreen>
     return Scaffold(
       body: AuroraBackground(
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
-            physics: const BouncingScrollPhysics(),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _topBar(),
-                const SizedBox(height: 14),
+                const SizedBox(height: 6),
                 _hero(),
-                const SizedBox(height: 22),
+                const SizedBox(height: 14),
                 _features(),
-                const SizedBox(height: 26),
+                const Spacer(),
                 _priceRow(),
-                const SizedBox(height: 18),
-                _cta(),
                 const SizedBox(height: 12),
-                _disclosure(),
+                _cta(),
                 const SizedBox(height: 8),
-                _legalRow(),
-                if (_error != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    _error!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.accent,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
+                _legalArea(),
               ],
             ),
           ),
@@ -195,35 +161,28 @@ class _PaywallScreenState extends State<PaywallScreen>
   }
 
   Widget _topBar() {
-    return Align(
-      alignment: Alignment.topRight,
-      child: AnimatedOpacity(
-        opacity: _showClose ? 1.0 : 0.0,
-        duration: const Duration(milliseconds: 400),
-        child: GestureDetector(
-          onTap: _showClose ? () => Navigator.pop(context) : null,
-          child: Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.surfaceBorder,
-                width: 1,
+    return SizedBox(
+      height: 32,
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: AnimatedOpacity(
+          opacity: _showClose ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 400),
+          child: GestureDetector(
+            onTap: _showClose ? () => Navigator.pop(context) : null,
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.surfaceBorder, width: 1),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.close_rounded,
-              color: AppColors.textPrimary,
-              size: 18,
+              child: const Icon(
+                Icons.close_rounded,
+                color: AppColors.textPrimary,
+                size: 16,
+              ),
             ),
           ),
         ),
@@ -234,75 +193,35 @@ class _PaywallScreenState extends State<PaywallScreen>
   Widget _hero() {
     return Column(
       children: [
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
-              width: 130,
-              height: 130,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.30),
-                    blurRadius: 50,
-                    spreadRadius: 6,
-                  ),
-                ],
-              ),
-            ),
-            Image.asset(
-              'assets/caliana.png',
-              width: 140,
-              height: 140,
-              fit: BoxFit.contain,
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        const Text(
-          'Caliana Pro',
-          style: TextStyle(
-            fontSize: 36,
-            fontWeight: FontWeight.w900,
-            color: AppColors.textPrimary,
-            letterSpacing: -1.2,
-            height: 1,
-          ),
+        Image.asset(
+          'assets/caliana.png',
+          width: 84,
+          height: 84,
+          fit: BoxFit.contain,
         ),
         const SizedBox(height: 8),
         const Text(
-          'Unlimited everything.\nAnnual: 7 days free.',
-          textAlign: TextAlign.center,
+          'Caliana Pro',
           style: TextStyle(
-            fontSize: 16,
-            height: 1.35,
+            fontSize: 28,
+            fontWeight: FontWeight.w900,
             color: AppColors.textPrimary,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.2,
+            letterSpacing: -1.0,
+            height: 1,
           ),
         ),
-        if (widget.triggerText != null) ...[
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 7,
-            ),
-            decoration: BoxDecoration(
-              color: AppColors.primarySoft,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              widget.triggerText!,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.primary,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+        const SizedBox(height: 6),
+        const Text(
+          'Unlimited everything. Annual: 7 days free.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13.5,
+            height: 1.3,
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.1,
           ),
-        ],
+        ),
       ],
     );
   }
@@ -312,33 +231,34 @@ class _PaywallScreenState extends State<PaywallScreen>
       _FeatureSpec(
         icon: Icons.all_inclusive_rounded,
         title: 'Unlimited everything',
-        sub: 'Photo logs, voice replies, recipe pulls, plan rebuilds — no caps.',
+        sub: 'Photos, voice, recipes — no caps.',
       ),
       _FeatureSpec(
-        icon: Icons.calendar_view_week_rounded,
-        title: 'Multi-day rebuild plans',
-        sub: 'Go over today, she fixes tomorrow automatically.',
+        icon: Icons.auto_awesome_rounded,
+        title: 'She fixes bad days',
+        sub: 'Tomorrow rebuilds itself when today goes off.',
       ),
       _FeatureSpec(
         icon: Icons.record_voice_over_rounded,
-        title: 'Caliana speaks back',
-        sub: 'British voice replies through ElevenLabs.',
+        title: 'British voice replies',
+        sub: 'Hear Caliana out loud, on demand.',
       ),
       _FeatureSpec(
         icon: Icons.bolt_rounded,
         title: 'Priority models',
-        sub: 'GPT-4o vision for photos, Whisper for voice — the lot.',
+        sub: 'GPT-4o vision, Whisper, the lot.',
       ),
     ];
 
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         for (var i = 0; i < items.length; i++) ...[
-          if (i > 0) const SizedBox(height: 10),
+          if (i > 0) const SizedBox(height: 6),
           _AnimatedFeatureRow(
             spec: items[i],
             controller: _featuresCtrl,
-            startAt: i * 0.18,
+            startAt: i * 0.16,
           ),
         ],
       ],
@@ -355,8 +275,8 @@ class _PaywallScreenState extends State<PaywallScreen>
               package: _monthly,
               label: 'MONTHLY',
               priceFallback: '£4.99',
-              subFallback: '/month',
-              badge: 'Cancel any time',
+              subFallback: '/mo',
+              badge: 'No commitment',
               isSelected: _selected == _monthly && _monthly != null,
               isPlaceholder: _monthly == null,
               onTap: _monthly == null
@@ -364,16 +284,14 @@ class _PaywallScreenState extends State<PaywallScreen>
                   : () => setState(() => _selected = _monthly),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: _priceCard(
               package: _annual,
               label: 'ANNUAL',
               priceFallback: '£29.99',
-              subFallback: '/year',
-              badge: _hasIntroTrial(_annual)
-                  ? '7 DAYS FREE'
-                  : 'BEST VALUE',
+              subFallback: '/yr',
+              badge: _hasIntroTrial(_annual) ? '7 DAYS FREE' : 'BEST VALUE',
               isSelected: _selected == _annual && _annual != null,
               isPlaceholder: _annual == null,
               isHighlight: true,
@@ -399,7 +317,6 @@ class _PaywallScreenState extends State<PaywallScreen>
     required VoidCallback? onTap,
   }) {
     final priceText = package?.storeProduct.priceString ?? priceFallback;
-    final subText = subFallback;
     return GestureDetector(
       onTap: onTap == null
           ? null
@@ -409,11 +326,11 @@ class _PaywallScreenState extends State<PaywallScreen>
             },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
-        height: 152,
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+        height: 116,
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primarySoft : Colors.white,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected
                 ? AppColors.primary
@@ -426,69 +343,51 @@ class _PaywallScreenState extends State<PaywallScreen>
               ? [
                   BoxShadow(
                     color: AppColors.primary.withValues(alpha: 0.22),
-                    blurRadius: 20,
+                    blurRadius: 18,
                     offset: const Offset(0, 6),
                   ),
                 ]
-              : [
-                  BoxShadow(
-                    color: AppColors.shadow.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
+              : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.4,
-                    color: isSelected
-                        ? AppColors.primary
-                        : AppColors.textSecondary,
-                  ),
-                ),
-                const Spacer(),
-                if (isHighlight)
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-              ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.4,
+                color:
+                    isSelected ? AppColors.primary : AppColors.textSecondary,
+              ),
             ),
-            const Spacer(),
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  priceText,
-                  style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w900,
-                    color: isPlaceholder
-                        ? AppColors.textHint
-                        : AppColors.textPrimary,
-                    letterSpacing: -0.6,
-                    height: 1,
+                Flexible(
+                  child: Text(
+                    priceText,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: isPlaceholder
+                          ? AppColors.textHint
+                          : AppColors.textPrimary,
+                      letterSpacing: -0.5,
+                      height: 1,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 3),
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 3),
+                  padding: const EdgeInsets.only(bottom: 2),
                   child: Text(
-                    subText,
-                    style: TextStyle(
-                      fontSize: 12,
+                    subFallback,
+                    style: const TextStyle(
+                      fontSize: 11,
                       fontWeight: FontWeight.w700,
                       color: AppColors.textHint,
                     ),
@@ -496,10 +395,9 @@ class _PaywallScreenState extends State<PaywallScreen>
                 ),
               ],
             ),
-            const SizedBox(height: 8),
             Container(
               padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
               decoration: BoxDecoration(
                 color: isHighlight
                     ? AppColors.primary
@@ -509,10 +407,10 @@ class _PaywallScreenState extends State<PaywallScreen>
               child: Text(
                 badge,
                 style: TextStyle(
-                  fontSize: 9.5,
+                  fontSize: 9,
                   fontWeight: FontWeight.w900,
                   color: isHighlight ? Colors.white : AppColors.primary,
-                  letterSpacing: 0.6,
+                  letterSpacing: 0.5,
                 ),
               ),
             ),
@@ -526,7 +424,7 @@ class _PaywallScreenState extends State<PaywallScreen>
     final canBuy = _selected != null && !_busy;
     return SizedBox(
       width: double.infinity,
-      height: 60,
+      height: 54,
       child: GestureDetector(
         onTap: canBuy ? _purchase : null,
         child: AnimatedContainer(
@@ -544,13 +442,13 @@ class _PaywallScreenState extends State<PaywallScreen>
                   )
                 : null,
             color: canBuy ? null : Colors.grey.shade300,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
             boxShadow: canBuy
                 ? [
                     BoxShadow(
                       color: AppColors.primary.withValues(alpha: 0.40),
-                      blurRadius: 26,
-                      offset: const Offset(0, 8),
+                      blurRadius: 22,
+                      offset: const Offset(0, 6),
                     ),
                   ]
                 : null,
@@ -558,8 +456,8 @@ class _PaywallScreenState extends State<PaywallScreen>
           child: Center(
             child: _busy
                 ? const SizedBox(
-                    width: 22,
-                    height: 22,
+                    width: 20,
+                    height: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.4,
                       color: Colors.white,
@@ -568,7 +466,7 @@ class _PaywallScreenState extends State<PaywallScreen>
                 : Text(
                     _ctaLabel,
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 15.5,
                       fontWeight: FontWeight.w900,
                       color: canBuy ? Colors.white : AppColors.textHint,
                       letterSpacing: -0.3,
@@ -580,36 +478,54 @@ class _PaywallScreenState extends State<PaywallScreen>
     );
   }
 
-  Widget _disclosure() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Text(
-        _selectedDisclosure(),
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          fontSize: 11.5,
-          height: 1.5,
-          color: AppColors.textSecondary,
-          fontWeight: FontWeight.w500,
-          letterSpacing: -0.05,
+  /// Tiny scroll area at the bottom — exists only so the Apple-required
+  /// auto-renew disclosure and legal links can be read without bloating
+  /// the page above. Capped at 78pt.
+  Widget _legalArea() {
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 78),
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Column(
+          children: [
+            Text(
+              _selectedDisclosure(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 10.5,
+                height: 1.4,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Wrap(
+              alignment: WrapAlignment.center,
+              children: [
+                _legalLink('Restore', _restorePurchase),
+                _dot(),
+                _legalLink('Terms', () => _openUrl(_termsUrl)),
+                _dot(),
+                _legalLink('Privacy', () => _openUrl(_privacyUrl)),
+                _dot(),
+                _legalLink('Delete', () => _openUrl(_deleteUrl)),
+              ],
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.accent,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ],
         ),
       ),
-    );
-  }
-
-  Widget _legalRow() {
-    return Wrap(
-      alignment: WrapAlignment.center,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        _legalLink('Restore', _restorePurchase),
-        _dot(),
-        _legalLink('Terms', () => _openUrl(_termsUrl)),
-        _dot(),
-        _legalLink('Privacy', () => _openUrl(_privacyUrl)),
-        _dot(),
-        _legalLink('Delete account', () => _openUrl(_deleteUrl)),
-      ],
     );
   }
 
@@ -619,7 +535,6 @@ class _PaywallScreenState extends State<PaywallScreen>
     HapticFeedback.mediumImpact();
     AnalyticsService.instance
         .logPaywallSubscribeAttempt(pkg.packageType == PackageType.annual);
-
     setState(() {
       _busy = true;
       _error = null;
@@ -664,15 +579,11 @@ class _PaywallScreenState extends State<PaywallScreen>
       if (restored) {
         Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Restored. Caliana Pro is back on.'),
-          ),
+          const SnackBar(content: Text('Restored. Caliana Pro is back on.')),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Nothing to restore on this account."),
-          ),
+          const SnackBar(content: Text("Nothing to restore on this account.")),
         );
       }
     } catch (e) {
@@ -696,11 +607,11 @@ class _PaywallScreenState extends State<PaywallScreen>
     return GestureDetector(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
         child: Text(
           text,
           style: const TextStyle(
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: FontWeight.w700,
             color: AppColors.textSecondary,
             decoration: TextDecoration.underline,
@@ -712,21 +623,16 @@ class _PaywallScreenState extends State<PaywallScreen>
   }
 
   Widget _dot() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 1),
       child: Text(
         '·',
-        style: TextStyle(
-          fontSize: 13,
-          color: AppColors.textHint,
-        ),
+        style: TextStyle(fontSize: 12, color: AppColors.textHint),
       ),
     );
   }
 }
 
-/// Static spec for a feature row — used by the paywall and onboarding
-/// in the same shape so brand stays consistent.
 class _FeatureSpec {
   final IconData icon;
   final String title;
@@ -738,13 +644,13 @@ class _FeatureSpec {
   });
 }
 
-/// Feature row that fades + slides in on a staggered offset of the
-/// parent controller. Polished, soft, fast — not the dead static
-/// list the old paywall shipped.
+/// Compact feature row — gradient icon tile + title + one-line sub.
+/// No card chrome (the old version was eating vertical space). Fades
+/// + slides in on a staggered offset of the parent controller.
 class _AnimatedFeatureRow extends StatelessWidget {
   final _FeatureSpec spec;
   final AnimationController controller;
-  final double startAt; // 0..1, where in the timeline this row begins
+  final double startAt;
   const _AnimatedFeatureRow({
     required this.spec,
     required this.controller,
@@ -767,73 +673,60 @@ class _AnimatedFeatureRow extends StatelessWidget {
         return Opacity(
           opacity: curve.value,
           child: Transform.translate(
-            offset: Offset(0, (1 - curve.value) * 12),
+            offset: Offset(0, (1 - curve.value) * 10),
             child: child,
           ),
         );
       },
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppColors.primary.withValues(alpha: 0.10),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.06),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
-              width: 42,
-              height: 42,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [Color(0xFF5A8AFF), Color(0xFF2F6BFF)],
                 ),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(11),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.25),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+                    color: AppColors.primary.withValues(alpha: 0.22),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
                   ),
                 ],
               ),
-              child: Icon(spec.icon, color: Colors.white, size: 22),
+              child: Icon(spec.icon, color: Colors.white, size: 20),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     spec.title,
                     style: const TextStyle(
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w900,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w800,
                       color: AppColors.textPrimary,
-                      letterSpacing: -0.3,
+                      letterSpacing: -0.2,
                     ),
                   ),
-                  const SizedBox(height: 2),
                   Text(
                     spec.sub,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                     style: const TextStyle(
-                      fontSize: 12.5,
-                      height: 1.4,
-                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      color: AppColors.textPrimary,
                       fontWeight: FontWeight.w500,
-                      letterSpacing: -0.05,
+                      height: 1.25,
                     ),
                   ),
                 ],
