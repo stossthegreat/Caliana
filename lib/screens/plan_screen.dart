@@ -1096,10 +1096,33 @@ class _PlanScreenState extends State<PlanScreen> {
   }
 
   Future<void> _commitMeal(PlannedMeal m) async {
+    // Guard: a meal scheduled for tomorrow can only be logged once
+    // tomorrow becomes today. The button is greyed out for future
+    // dates but we double-check here.
+    final today = DateTime.now();
+    final mealDay = DateTime(m.date.year, m.date.month, m.date.day);
+    final todayKey = DateTime(today.year, today.month, today.day);
+    if (mealDay.isAfter(todayKey)) {
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger?.showSnackBar(SnackBar(
+        backgroundColor: const Color(0xFF0F172A),
+        duration: const Duration(seconds: 3),
+        content: Text(
+          "Hold up — that's planned for ${_formatLongDate(m.date)}. Tap it on the day.",
+          style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.w600),
+        ),
+      ));
+      return;
+    }
+
     HapticFeedback.mediumImpact();
+    // Log against TODAY's day so the calorie ring on the Today tab
+    // reflects the eat immediately, regardless of which planned date
+    // the meal originally sat on.
     final entry = FoodEntry(
       id: 'fe_${DateTime.now().millisecondsSinceEpoch}',
-      timestamp: m.date,
+      timestamp: DateTime.now(),
       name: m.idea.name,
       calories: m.idea.calories,
       proteinGrams: m.idea.protein,
@@ -1112,6 +1135,17 @@ class _PlanScreenState extends State<PlanScreen> {
     );
     await DayLogService.instance.addEntry(entry);
     await PlanService.instance.markCommitted(m.date, m.id);
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.showSnackBar(SnackBar(
+      backgroundColor: const Color(0xFF0F172A),
+      duration: const Duration(seconds: 3),
+      content: Text(
+        'Logged on Today: ${entry.name} (${entry.calories} kcal)',
+        style: const TextStyle(
+            color: Colors.white, fontWeight: FontWeight.w600),
+      ),
+    ));
   }
 
   Widget _primaryButton({
@@ -1389,33 +1423,47 @@ class _UpcomingRow extends StatelessWidget {
               ],
             ),
           ),
-          GestureDetector(
-            onTap: onCommit,
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(50),
-                boxShadow: [
+          // Button is only LIVE when the meal is for today or earlier.
+          // Future-dated meals (Tomorrow, Wednesday, etc.) show a grey
+          // "Later" pill until the day arrives.
+          _commitButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _commitButton() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final mealDay =
+        DateTime(planned.date.year, planned.date.month, planned.date.day);
+    final isLive = !mealDay.isAfter(today);
+
+    return GestureDetector(
+      onTap: isLive ? onCommit : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: isLive ? AppColors.primary : AppColors.surfaceBorder,
+          borderRadius: BorderRadius.circular(50),
+          boxShadow: isLive
+              ? [
                   BoxShadow(
                     color: AppColors.primary.withValues(alpha: 0.30),
                     blurRadius: 10,
                     offset: const Offset(0, 3),
                   ),
-                ],
-              ),
-              child: const Text(
-                'I ate this',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                ),
-              ),
-            ),
+                ]
+              : null,
+        ),
+        child: Text(
+          isLive ? 'I ate this' : 'Later',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: isLive ? Colors.white : AppColors.textHint,
           ),
-        ],
+        ),
       ),
     );
   }

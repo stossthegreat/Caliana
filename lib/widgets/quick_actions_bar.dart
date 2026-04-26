@@ -22,8 +22,12 @@ class QuickActionsBar extends StatelessWidget {
 
   const QuickActionsBar({super.key, required this.onTap});
 
+  // Two flagship actions: "Fix my day" stays on Today (suggest dinner
+  // that lands them on goal). "Fix tomorrow" routes straight to the
+  // Plan tab (which is already focused on tomorrow).
   static const actions = <QuickAction>[
     QuickAction('fix_my_day', '⚡', 'Fix my day', primary: true),
+    QuickAction('fix_tomorrow', '📅', 'Fix tomorrow'),
     QuickAction('log_meal', '🍝', 'Log meal'),
     QuickAction('high_protein', '🍗', 'High protein'),
     QuickAction('eat_clean', '🥗', 'Eat clean'),

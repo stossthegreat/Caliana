@@ -4,29 +4,55 @@ import '../theme/app_theme.dart';
 import 'today_screen.dart';
 import 'plan_screen.dart';
 
+/// Globally-visible tab index. Any screen can switch tabs by writing to
+/// MainTabs.activeTab (e.g. when the user taps a "Plan tomorrow" action
+/// chip in the Today chat, that handler does:
+///   MainTabs.activeTab.value = MainTabs.planTab;
+class _TabIndex extends ValueNotifier<int> {
+  _TabIndex() : super(0);
+}
+
 /// The two-tab home shell. Today on the left (log reality), Plan on the
 /// right (control the future). Bottom bar matches the brand blue.
 class MainTabs extends StatefulWidget {
   const MainTabs({super.key});
+
+  static const int todayTab = 0;
+  static const int planTab = 1;
+
+  /// Singleton notifier so anywhere in the app can switch tabs without
+  /// piping a callback through the widget tree.
+  static final ValueNotifier<int> activeTab = _TabIndex();
+
+  /// Convenience: go to the Plan tab.
+  static void goToPlan() {
+    activeTab.value = planTab;
+  }
+
+  /// Convenience: go to Today.
+  static void goToToday() {
+    activeTab.value = todayTab;
+  }
 
   @override
   State<MainTabs> createState() => _MainTabsState();
 }
 
 class _MainTabsState extends State<MainTabs> {
-  int _index = 0;
-
   static const _screens = [TodayScreen(), PlanScreen()];
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(index: _index, children: _screens),
-      bottomNavigationBar: _buildNav(),
+    return ValueListenableBuilder<int>(
+      valueListenable: MainTabs.activeTab,
+      builder: (context, index, _) => Scaffold(
+        body: IndexedStack(index: index, children: _screens),
+        bottomNavigationBar: _buildNav(index),
+      ),
     );
   }
 
-  Widget _buildNav() {
+  Widget _buildNav(int currentIndex) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -46,6 +72,7 @@ class _MainTabsState extends State<MainTabs> {
             children: [
               Expanded(
                 child: _navItem(
+                  current: currentIndex,
                   index: 0,
                   icon: Icons.chat_rounded,
                   label: 'Today',
@@ -53,6 +80,7 @@ class _MainTabsState extends State<MainTabs> {
               ),
               Expanded(
                 child: _navItem(
+                  current: currentIndex,
                   index: 1,
                   icon: Icons.calendar_month_rounded,
                   label: 'Plan',
@@ -66,17 +94,18 @@ class _MainTabsState extends State<MainTabs> {
   }
 
   Widget _navItem({
+    required int current,
     required int index,
     required IconData icon,
     required String label,
   }) {
-    final selected = _index == index;
+    final selected = current == index;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
-        if (_index == index) return;
+        if (current == index) return;
         HapticFeedback.lightImpact();
-        setState(() => _index = index);
+        MainTabs.activeTab.value = index;
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),

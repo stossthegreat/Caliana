@@ -25,6 +25,7 @@ import '../widgets/quick_actions_bar.dart';
 import '../widgets/recipes_sheet.dart';
 import '../widgets/food_edit_sheet.dart';
 import 'paywall_screen.dart';
+import 'main_tabs.dart';
 import 'settings_screen.dart';
 
 const _kFirstWelcomeKey = 'caliana_first_welcome_played_v1';
@@ -618,7 +619,10 @@ class _TodayScreenState extends State<TodayScreen> {
                       onChipTap: (label) => _onActionChip(label, msg),
                       onLongPress: () => _onMessageLongPress(msg),
                       onTap: () => _onMessageTap(msg),
-                      onCommitMeal: _commitMealFromIdea,
+                      // No "I ate this" on home cards — that's a Plan
+                      // tab action. Today's reality is logged via snap
+                      // / voice / text; suggestions here are just
+                      // suggestions, not pre-commits.
                     );
                   },
                 ),
@@ -633,7 +637,13 @@ class _TodayScreenState extends State<TodayScreen> {
   void _onQuickAction(String id) {
     switch (id) {
       case 'fix_my_day':
+      case 'save_tonight': // legacy id from prior label
         _onFixMyDay();
+        break;
+      case 'fix_tomorrow':
+      case 'plan_tomorrow': // legacy id
+        HapticFeedback.lightImpact();
+        MainTabs.goToPlan();
         break;
       case 'log_meal':
         _textFocus.requestFocus();
@@ -1433,8 +1443,11 @@ class _TodayScreenState extends State<TodayScreen> {
   // Chat actions / long-press / nav
   // ---------------------------------------------------------------------------
   Future<void> _onActionChip(String label, ChatMessage source) async {
-    // Route well-known chip labels to real actions so taps deliver actual
-    // meal suggestions / fixes — never just a follow-up chat reply.
+    // Route well-known chip labels to real actions. Anything that
+    // refers to the FUTURE (the week, tomorrow, the rebuild) sends the
+    // user to the Plan tab where Caliana actually fixes days.
+    // "Fix dinner" / "Save tonight" stay on Today and generate options
+    // for what to eat in the next few hours.
     final l = label.toLowerCase().trim();
     switch (l) {
       case 'snap food':
@@ -1445,18 +1458,29 @@ class _TodayScreenState extends State<TodayScreen> {
       case 'snap my fridge':
         _onFridgeTap();
         return;
+      // ── Future-fix chips → Plan tab ──────────────────────────
+      // "Fix tomorrow" is the canonical label. The aliases stay in
+      // case the model ever emits the older "Fix the week" wording.
+      case 'fix tomorrow':
+      case 'plan tomorrow':
+      case 'open plan':
+      case 'fix the week':
+      case 'rebuild week':
+      case 'rebuild the week':
+        HapticFeedback.lightImpact();
+        MainTabs.goToPlan();
+        return;
+      // ── Today-fix chips stay on Today and surface dinner options ──
       case 'fix my day':
       case 'fix the day':
+      case 'save tonight':
+      case 'fix dinner':
+      case 'fix my dinner':
         _onFixMyDay();
         return;
       case 'suggest dinner':
       case 'dinner ideas':
         _onSuggestDinner();
-        return;
-      case 'fix the week':
-      case 'rebuild week':
-      case 'rebuild the week':
-        _onFixTheWeek();
         return;
       case 'high protein':
       case 'high-protein':
@@ -1494,52 +1518,6 @@ class _TodayScreenState extends State<TodayScreen> {
     if (msg.foodEntry != null) {
       _openFoodEditSheet(msg.foodEntry!);
     }
-  }
-
-  /// Commit a suggested meal as a real food entry on today. Called from
-  /// the "I ate this" button on every recipe card in chat. Adds the
-  /// entry, fires haptics, and shows a snackbar so the user sees the
-  /// log was registered.
-  Future<void> _commitMealFromIdea(MealIdea idea) async {
-    HapticFeedback.mediumImpact();
-    final now = DateTime.now();
-    final entry = FoodEntry(
-      id: 'fe_${now.millisecondsSinceEpoch}',
-      timestamp: now,
-      name: idea.name,
-      calories: idea.calories,
-      proteinGrams: idea.protein,
-      carbsGrams: idea.carbs,
-      fatGrams: idea.fat,
-      inputMethod: 'plan',
-      photoPath: null,
-      confidence: 'high',
-      notes: 'From a meal suggestion',
-    );
-    await DayLogService.instance.addEntry(entry);
-    await DayLogService.instance.addMessage(
-      now,
-      ChatMessage(
-        id: 'm_${now.millisecondsSinceEpoch}_log',
-        timestamp: now,
-        role: 'caliana',
-        type: 'foodLog',
-        text: entry.name,
-        foodEntry: entry,
-      ),
-    );
-    if (!mounted) return;
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.showSnackBar(SnackBar(
-      backgroundColor: const Color(0xFF0F172A),
-      duration: const Duration(seconds: 2),
-      content: Text(
-        'Logged: ${entry.name} (${entry.calories} kcal)',
-        style: const TextStyle(
-            color: Colors.white, fontWeight: FontWeight.w600),
-      ),
-    ));
-    _scrollToBottom();
   }
 
   void _openFoodEditSheet(FoodEntry entry) {
