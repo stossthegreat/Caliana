@@ -95,17 +95,15 @@ class CalianaService {
           )
           .timeout(const Duration(seconds: 20));
       if (res.statusCode != 200) {
-        // Surface the backend's actual error so missing keys / wrong voice
-        // ID / quota issues are visible in the device logs instead of
-        // silent failure.
-        debugPrint(
-          '🔇 Caliana voice ${res.statusCode}: '
-          '${res.body.length > 400 ? '${res.body.substring(0, 400)}…' : res.body}',
-        );
+        final msg =
+            res.body.length > 400 ? '${res.body.substring(0, 400)}…' : res.body;
+        debugPrint('🔇 Caliana voice ${res.statusCode}: $msg');
+        _lastVoiceError = 'Voice ${res.statusCode}: $msg';
         return null;
       }
       if (res.bodyBytes.isEmpty) {
         debugPrint('🔇 Caliana voice: 200 OK but empty body');
+        _lastVoiceError = 'Voice route returned empty audio';
         return null;
       }
 
@@ -114,11 +112,50 @@ class CalianaService {
         '${dir.path}/caliana_voice_${DateTime.now().millisecondsSinceEpoch}.mp3',
       );
       await file.writeAsBytes(res.bodyBytes, flush: true);
+      _lastVoiceError = null;
       return file.path;
     } catch (e) {
       debugPrint('🔇 Caliana voice error: $e');
+      _lastVoiceError = 'Voice error: $e';
       return null;
     }
+  }
+
+  /// Last error from synthesizeVoice — surfaced in a SnackBar by today_screen
+  /// once per session so the user knows when voice is silent.
+  String? _lastVoiceError;
+  String? get lastVoiceError => _lastVoiceError;
+  void clearLastVoiceError() => _lastVoiceError = null;
+
+  /// Hit the backend's /api/diagnose endpoint. Returns the parsed JSON or
+  /// throws with a useful message. Used by the Settings "Test voice"
+  /// button so the user can see exactly what's broken without hunting in
+  /// device logs.
+  Future<Map<String, dynamic>> diagnose() async {
+    if (_baseUrl.isEmpty) {
+      throw Exception('Backend URL not set');
+    }
+    final res = await http
+        .get(Uri.parse('$_baseUrl/api/diagnose'))
+        .timeout(const Duration(seconds: 15));
+    if (res.statusCode != 200) {
+      throw Exception('Diagnose ${res.statusCode}: ${res.body}');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  /// End-to-end voice test: synthesise a short line, return the local
+  /// file path so the caller can play it. Throws with a precise reason
+  /// if anything is off.
+  Future<String> testVoice() async {
+    if (_baseUrl.isEmpty) {
+      throw Exception('Backend URL not set');
+    }
+    final path = await synthesizeVoice('Right then. Voice check, all working.');
+    if (path == null) {
+      throw Exception(_lastVoiceError ?? 'Voice synthesis returned no audio');
+    }
+    return path;
   }
 
   // ---------------------------------------------------------------------------
