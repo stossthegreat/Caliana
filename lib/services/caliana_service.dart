@@ -235,7 +235,8 @@ class CalianaService {
     if (text.trim().isEmpty) return null;
 
     if (_baseUrl.isEmpty) {
-      return _localFallbackEntry(text, inputMethod: inputMethod);
+      _lastFoodLogError = 'Backend URL not set — connect to Caliana';
+      return null;
     }
 
     try {
@@ -247,15 +248,20 @@ class CalianaService {
           )
           .timeout(const Duration(seconds: 20));
       if (res.statusCode != 200) {
-        return _localFallbackEntry(text, inputMethod: inputMethod);
+        _lastFoodLogError =
+            'Couldn\'t analyse that. (${res.statusCode})';
+        debugPrint('parseFoodFromText ${res.statusCode}: ${res.body}');
+        return null;
       }
+      _lastFoodLogError = null;
       return _entryFromJson(
         jsonDecode(res.body) as Map<String, dynamic>,
         inputMethod: inputMethod,
       );
     } catch (e) {
       debugPrint('parseFoodFromText error: $e');
-      return _localFallbackEntry(text, inputMethod: inputMethod);
+      _lastFoodLogError = 'Couldn\'t reach Caliana — check connection';
+      return null;
     }
   }
 
@@ -264,11 +270,8 @@ class CalianaService {
   // ---------------------------------------------------------------------------
   Future<FoodEntry?> parseFoodFromPhoto(String photoPath, {String? hint}) async {
     if (_baseUrl.isEmpty) {
-      return _localFallbackEntry(
-        hint ?? 'Photographed meal',
-        inputMethod: 'photo',
-        photoPath: photoPath,
-      );
+      _lastFoodLogError = 'Backend URL not set — connect to Caliana';
+      return null;
     }
 
     try {
@@ -282,12 +285,12 @@ class CalianaService {
       final streamed = await req.send().timeout(const Duration(seconds: 30));
       final res = await http.Response.fromStream(streamed);
       if (res.statusCode != 200) {
-        return _localFallbackEntry(
-          hint ?? 'Photographed meal',
-          inputMethod: 'photo',
-          photoPath: photoPath,
-        );
+        _lastFoodLogError =
+            'Couldn\'t read the photo. (${res.statusCode})';
+        debugPrint('parseFoodFromPhoto ${res.statusCode}: ${res.body}');
+        return null;
       }
+      _lastFoodLogError = null;
       return _entryFromJson(
         jsonDecode(res.body) as Map<String, dynamic>,
         inputMethod: 'photo',
@@ -295,13 +298,16 @@ class CalianaService {
       );
     } catch (e) {
       debugPrint('parseFoodFromPhoto error: $e');
-      return _localFallbackEntry(
-        hint ?? 'Photographed meal',
-        inputMethod: 'photo',
-        photoPath: photoPath,
-      );
+      _lastFoodLogError = 'Couldn\'t read the photo — check connection';
+      return null;
     }
   }
+
+  /// Last food-log failure surfaced via UI snackbar so users never see
+  /// a silent fake "Caesar salad" estimate again.
+  String? _lastFoodLogError;
+  String? get lastFoodLogError => _lastFoodLogError;
+  void clearLastFoodLogError() => _lastFoodLogError = null;
 
   // ---------------------------------------------------------------------------
   // Helpers
@@ -626,42 +632,6 @@ Entries today: ${today.entries.length}.
     ],
   };
 
-  FoodEntry _localFallbackEntry(
-    String text, {
-    required String inputMethod,
-    String? photoPath,
-  }) {
-    final base = text.toLowerCase();
-    int kcal = 350;
-    int p = 18, c = 35, f = 14;
-    if (base.contains('salad')) { kcal = 220; p = 10; c = 18; f = 12; }
-    if (base.contains('pizza')) { kcal = 720; p = 28; c = 75; f = 30; }
-    if (base.contains('burger')) { kcal = 650; p = 30; c = 40; f = 36; }
-    if (base.contains('chicken')) { kcal = 420; p = 38; c = 22; f = 16; }
-    if (base.contains('rice')) { kcal = 360; p = 8; c = 65; f = 4; }
-    if (base.contains('pasta')) { kcal = 540; p = 18; c = 70; f = 18; }
-    if (base.contains('coffee')) { kcal = 80; p = 4; c = 6; f = 4; }
-    if (base.contains('apple')) { kcal = 95; p = 0; c = 25; f = 0; }
-    if (base.contains('banana')) { kcal = 105; p = 1; c = 27; f = 0; }
-    return FoodEntry(
-      id: 'fe_${DateTime.now().millisecondsSinceEpoch}',
-      timestamp: DateTime.now(),
-      name: _titleCase(text),
-      calories: kcal,
-      proteinGrams: p,
-      carbsGrams: c,
-      fatGrams: f,
-      inputMethod: inputMethod,
-      photoPath: photoPath,
-      confidence: 'low',
-      notes: 'Estimated locally — backend offline.',
-    );
-  }
-
-  String _titleCase(String s) {
-    if (s.isEmpty) return s;
-    return s[0].toUpperCase() + s.substring(1);
-  }
 }
 
 class CalianaReply {
