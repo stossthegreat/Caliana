@@ -23,9 +23,9 @@ android {
     signingConfigs {
         create("release") {
             storeFile = file("upload-keystore.jks")
-            storePassword = System.getenv("STORE_PASSWORD") ?: "skeletalpt123"
-            keyAlias = System.getenv("KEY_ALIAS") ?: "skeletalpt"
-            keyPassword = System.getenv("KEY_PASSWORD") ?: "skeletalpt123"
+            storePassword = System.getenv("STORE_PASSWORD") ?: "caliana2026"
+            keyAlias = System.getenv("KEY_ALIAS") ?: "caliana"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: "caliana2026"
         }
     }
 

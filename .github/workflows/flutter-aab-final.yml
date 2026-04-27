@@ -1,9 +1,11 @@
 name: Build Flutter AAB - Final
 
 on:
+  # Allow manual runs from any branch — handy for verifying the
+  # keystore on a feature branch before merging to main.
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ main, "claude/**" ]
 
 jobs:
   build:
@@ -47,16 +49,53 @@ jobs:
       - name: flutter pub get
         run: flutter pub get
 
-      - name: Verify keystore
+      - name: Verify keystore + print upload-key fingerprints
         run: |
           set -e
           echo "Using keystore from repo: android/app/upload-keystore.jks"
           ls -l android/app/upload-keystore.jks
-          echo "Getting SHA-1 fingerprint:"
-          keytool -list -v -keystore android/app/upload-keystore.jks -alias skeletalpt -storepass skeletalpt123 -keypass skeletalpt123 | grep "SHA1:"
-          echo "KEY_ALIAS=skeletalpt" >> $GITHUB_ENV
-          echo "STORE_PASSWORD=skeletalpt123" >> $GITHUB_ENV
-          echo "KEY_PASSWORD=skeletalpt123" >> $GITHUB_ENV
+          echo ""
+          echo "=========================================================="
+          echo "  CALIANA UPLOAD KEY FINGERPRINTS"
+          echo "  Register these with Google Play Console → App integrity"
+          echo "=========================================================="
+          # Pull the cert details and print the fingerprint lines so they
+          # can be copied straight from the workflow log into Play Console.
+          keytool -list -v \
+            -keystore android/app/upload-keystore.jks \
+            -alias caliana \
+            -storepass caliana2026 \
+            -keypass caliana2026 \
+          | grep -E "Owner:|Valid|MD5:|SHA1:|SHA256:" \
+          | sed 's/^[[:space:]]*//'
+          echo "=========================================================="
+          # Also stash the SHA-1 in the build summary so it shows up at
+          # the top of the workflow run on the GitHub Actions page.
+          SHA1=$(keytool -list -v \
+            -keystore android/app/upload-keystore.jks \
+            -alias caliana \
+            -storepass caliana2026 \
+            -keypass caliana2026 \
+          | grep "SHA1:" | head -n1 | awk -F'SHA1:' '{print $2}' | xargs)
+          SHA256=$(keytool -list -v \
+            -keystore android/app/upload-keystore.jks \
+            -alias caliana \
+            -storepass caliana2026 \
+            -keypass caliana2026 \
+          | grep "SHA256:" | head -n1 | awk -F'SHA256:' '{print $2}' | xargs)
+          {
+            echo "## 🔑 Caliana upload-key fingerprints"
+            echo ""
+            echo "Paste these into Google Play Console → **App integrity** → **Upload key certificate**:"
+            echo ""
+            echo '```'
+            echo "SHA-1:   $SHA1"
+            echo "SHA-256: $SHA256"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "KEY_ALIAS=caliana" >> $GITHUB_ENV
+          echo "STORE_PASSWORD=caliana2026" >> $GITHUB_ENV
+          echo "KEY_PASSWORD=caliana2026" >> $GITHUB_ENV
 
       - name: Build signed AAB
         run: |
