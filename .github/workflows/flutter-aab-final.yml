@@ -52,11 +52,11 @@ jobs:
           set -e
           echo "Using keystore from repo: android/app/upload-keystore.jks"
           ls -l android/app/upload-keystore.jks
-          echo "Getting SHA-1 fingerprint:"
-          keytool -list -v -keystore android/app/upload-keystore.jks -alias skeletalpt -storepass skeletalpt123 -keypass skeletalpt123 | grep "SHA1:"
-          echo "KEY_ALIAS=skeletalpt" >> $GITHUB_ENV
-          echo "STORE_PASSWORD=skeletalpt123" >> $GITHUB_ENV
-          echo "KEY_PASSWORD=skeletalpt123" >> $GITHUB_ENV
+          echo "Caliana upload key fingerprints (register these with Google Play):"
+          keytool -list -v -keystore android/app/upload-keystore.jks -alias caliana -storepass caliana2026 -keypass caliana2026 | grep -E "MD5:|SHA1:|SHA256:|Valid"
+          echo "KEY_ALIAS=caliana" >> $GITHUB_ENV
+          echo "STORE_PASSWORD=caliana2026" >> $GITHUB_ENV
+          echo "KEY_PASSWORD=caliana2026" >> $GITHUB_ENV
 
       - name: Build signed AAB
         run: |
