@@ -32,11 +32,11 @@ class RevenueCatService {
 
   static const _iosApiKey = String.fromEnvironment(
     'RC_IOS_KEY',
-    defaultValue: '',
+    defaultValue: 'appl_FXAUDBkWThHmQuqtxfvWgSZZqDI',
   );
   static const _androidApiKey = String.fromEnvironment(
     'RC_ANDROID_KEY',
-    defaultValue: '',
+    defaultValue: 'goog_vjhKsBXwDfKlDBYFdoRtkjhDNeF',
   );
 
   bool _ready = false;
