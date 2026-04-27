@@ -51,5 +51,11 @@
 	<string>Caliana uses your camera to snap meals and your fridge to estimate calories and plan around what you have.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>https</string>
+		<string>http</string>
+		<string>mailto</string>
+	</array>
 </dict>
 </plist>
