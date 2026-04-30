@@ -2,10 +2,11 @@ plugins {
     id("com.android.application")
     id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.google.gms.google-services")
 }
 
 android {
-    namespace = "com.caliana.caliana"
+    namespace = "com.gobly.gobly"
     compileSdk = maxOf(flutter.compileSdkVersion, 35)
     // Pin NDK to a known-good locally installed version
     // (the auto-selected 26.3.11579264 is corrupt on this machine).
@@ -23,14 +24,14 @@ android {
     signingConfigs {
         create("release") {
             storeFile = file("upload-keystore.jks")
-            storePassword = System.getenv("STORE_PASSWORD") ?: "caliana2026"
-            keyAlias = System.getenv("KEY_ALIAS") ?: "caliana"
-            keyPassword = System.getenv("KEY_PASSWORD") ?: "caliana2026"
+            storePassword = System.getenv("STORE_PASSWORD") ?: "skeletalpt123"
+            keyAlias = System.getenv("KEY_ALIAS") ?: "skeletalpt"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: "skeletalpt123"
         }
     }
 
     defaultConfig {
-        applicationId = "com.caliana.caliana"
+        applicationId = "com.gobly.gobly"
         // record_android requires API 23+, image_picker prefers 21+
         minSdk = maxOf(flutter.minSdkVersion, 23)
         targetSdk = maxOf(flutter.targetSdkVersion, 35)

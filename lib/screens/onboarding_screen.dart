@@ -1,15 +1,12 @@
 import 'dart:async';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 import '../models/user_profile.dart';
 import '../services/user_profile_service.dart';
-import '../services/usage_service.dart';
 import '../services/analytics_service.dart';
-import '../widgets/character_card.dart';
-import 'paywall_screen.dart';
+import '../widgets/aurora_background.dart';
 
 /// Caliana's onboarding. 10 screens, ~90 sec.
 /// Captures everything needed to compute calorie + macro goals, plus
@@ -28,6 +25,12 @@ class OnboardingScreen extends StatefulWidget {
   static Future<void> markSeen() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_seenKey, true);
+  }
+
+  /// Used by Settings → Delete account so the next launch re-onboards.
+  static Future<void> markUnseen() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_seenKey);
   }
 
   @override
@@ -99,88 +102,56 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: PageView(
-                controller: _pc,
-                physics: const NeverScrollableScrollPhysics(),
-                onPageChanged: (i) => setState(() => _index = i),
-                children: [
-                  _FadeSlideIn(
-                    key: const ValueKey('welcome'),
-                    child: _Welcome(onNext: _next),
-                  ),
-                  _FadeSlideIn(
-                    key: ValueKey('bio_${_draft.hashCode}'),
-                    child: _Biometrics(
+      body: AuroraBackground(
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child: PageView(
+                  controller: _pc,
+                  physics: const NeverScrollableScrollPhysics(),
+                  onPageChanged: (i) => setState(() => _index = i),
+                  children: [
+                    _Welcome(onNext: _next),
+                    _Biometrics(
                       draft: _draft,
                       onUpdate: (p) => setState(() => _draft = p),
                       onNext: _next,
                     ),
-                  ),
-                  _FadeSlideIn(
-                    key: const ValueKey('goal'),
-                    child: _Goal(
+                    _Goal(
                       draft: _draft,
                       onUpdate: (p) => setState(() => _draft = p),
                       onNext: _next,
                     ),
-                  ),
-                  _FadeSlideIn(
-                    key: const ValueKey('activity'),
-                    child: _Activity(
+                    _Activity(
                       draft: _draft,
                       onUpdate: (p) => setState(() => _draft = p),
                       onNext: _next,
                     ),
-                  ),
-                  _FadeSlideIn(
-                    key: const ValueKey('diet'),
-                    child: _Diet(
+                    _Diet(
                       draft: _draft,
                       onUpdate: (p) => setState(() => _draft = p),
                       onNext: _next,
                     ),
-                  ),
-                  _FadeSlideIn(
-                    key: const ValueKey('tone'),
-                    child: _Tone(
+                    _Tone(
                       draft: _draft,
                       onUpdate: (p) => setState(() => _draft = p),
                       onNext: _next,
                     ),
-                  ),
-                  _FadeSlideIn(
-                    key: const ValueKey('notif'),
-                    child: _Notifications(
+                    _Notifications(
                       draft: _draft,
                       onUpdate: (p) => setState(() => _draft = p),
                       onNext: _next,
                     ),
-                  ),
-                  _FadeSlideIn(
-                    key: const ValueKey('plan'),
-                    child: _PlanReveal(draft: _draft, onNext: _next),
-                  ),
-                  _FadeSlideIn(
-                    key: const ValueKey('proof'),
-                    child: _SocialProof(onNext: _next),
-                  ),
-                  _FadeSlideIn(
-                    key: const ValueKey('paywall'),
-                    child: _SoftPaywall(
-                      onContinueFree: _finish,
-                      onSubscribe: _finish,
-                    ),
-                  ),
-                ],
+                    _PlanReveal(draft: _draft, onNext: _next),
+                    _SocialProof(onNext: _next),
+                    _SoftPaywall(onContinueFree: _finish, onSubscribe: _finish),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -188,29 +159,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
       child: Row(
         children: [
           if (_index > 0)
             GestureDetector(
               onTap: _back,
               child: Container(
-                width: 38,
-                height: 38,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Colors.white.withValues(alpha: 0.06),
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: AppColors.surfaceBorder,
+                    color: Colors.white.withValues(alpha: 0.10),
                     width: 1,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
                 ),
                 child: const Icon(
                   Icons.arrow_back_rounded,
@@ -220,7 +184,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             )
           else
-            const SizedBox(width: 38),
+            const SizedBox(width: 36),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -228,22 +192,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
                   value: (_index + 1) / 10,
-                  minHeight: 5,
-                  backgroundColor: AppColors.surfaceBorder,
-                  valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+                  minHeight: 4,
+                  backgroundColor: Colors.white.withValues(alpha: 0.08),
+                  valueColor: const AlwaysStoppedAnimation(AppColors.accent),
                 ),
               ),
             ),
           ),
           SizedBox(
-            width: 38,
+            width: 36,
             child: Text(
               '${_index + 1}/10',
-              textAlign: TextAlign.right,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w800,
+              style: TextStyle(
+                fontSize: 11,
+                color: AppColors.textHint,
+                fontWeight: FontWeight.w700,
                 letterSpacing: 0.5,
               ),
             ),
@@ -257,42 +220,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 // ============================================================================
 // SCREEN 1 — Welcome
 // ============================================================================
-class _Welcome extends StatefulWidget {
+class _Welcome extends StatelessWidget {
   final VoidCallback onNext;
   const _Welcome({required this.onNext});
-
-  @override
-  State<_Welcome> createState() => _WelcomeState();
-}
-
-class _WelcomeState extends State<_Welcome> {
-  final AudioPlayer _intro = AudioPlayer();
-  bool _played = false;
-
-  @override
-  void initState() {
-    super.initState();
-    // Auto-play the ElevenLabs intro once after first frame.
-    // Fails silently if the asset isn't there yet.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _play());
-  }
-
-  @override
-  void dispose() {
-    _intro.dispose();
-    super.dispose();
-  }
-
-  Future<void> _play() async {
-    if (_played) return;
-    _played = true;
-    try {
-      await _intro.stop();
-      await _intro.play(AssetSource('audio/onboarding_intro.mp3'));
-    } catch (_) {
-      // Silent — the screen still works without audio.
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -319,30 +249,19 @@ class _WelcomeState extends State<_Welcome> {
               height: 1,
             ),
           ),
-          const SizedBox(height: 14),
-          const Text(
-            'Calories, but make it British.',
+          const SizedBox(height: 10),
+          Text(
+            'Your AI nutrition coach.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 17,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textSecondary,
               letterSpacing: -0.2,
             ),
           ),
-          const SizedBox(height: 8),
-          const Text(
-            'Half sharp mate, half narrator quietly\njudging your third coffee.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              height: 1.45,
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
           const Spacer(flex: 3),
-          _PrimaryButton(label: 'Continue', onTap: widget.onNext),
+          _PrimaryButton(label: 'Continue', onTap: onNext),
         ],
       ),
     );
@@ -384,15 +303,13 @@ class _BiometricsState extends State<_Biometrics> {
           const _Subtitle(
               'Caliana needs the basics to calculate your numbers.'),
           const SizedBox(height: 24),
-          const Text(
-            'Sex',
-            style: TextStyle(
-              fontSize: 13,
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.6,
-            ),
-          ),
+          Text('Sex',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.textHint,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+              )),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -509,7 +426,7 @@ class _GoalState extends State<_Goal> {
           const _Subtitle('Caliana shapes your day around this.'),
           const SizedBox(height: 24),
           _GoalCard(
-            icon: Icons.trending_down_rounded,
+            emoji: '⬇️',
             title: 'Lose weight',
             sub: 'Sustainable cut — about a pound a week',
             selected: _goal == 'lose',
@@ -522,7 +439,7 @@ class _GoalState extends State<_Goal> {
           ),
           const SizedBox(height: 10),
           _GoalCard(
-            icon: Icons.balance_rounded,
+            emoji: '⚖️',
             title: 'Maintain',
             sub: 'Hold steady — eat at maintenance',
             selected: _goal == 'maintain',
@@ -533,7 +450,7 @@ class _GoalState extends State<_Goal> {
           ),
           const SizedBox(height: 10),
           _GoalCard(
-            icon: Icons.trending_up_rounded,
+            emoji: '⬆️',
             title: 'Gain weight',
             sub: 'Lean bulk — slow, intentional gain',
             selected: _goal == 'gain',
@@ -562,35 +479,16 @@ class _GoalState extends State<_Goal> {
                   horizontal: 14,
                   vertical: 12,
                 ),
-                decoration: BoxDecoration(
-                  color: AppColors.primarySoft,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: AppColors.primary.withValues(alpha: 0.20),
-                    width: 1,
+                decoration: GlassDecoration.coralCard(opacity: 0.05),
+                child: Text(
+                  'Caliana reckons you\'ll hit it around '
+                  '${_monthName(eta.month)} ${eta.day}, ${eta.year}.',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w500,
+                    height: 1.4,
                   ),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.flag_rounded,
-                      color: AppColors.primary,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Caliana reckons you\'ll hit it around '
-                        '${_monthName(eta.month)} ${eta.day}, ${eta.year}.',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ),
             ],
@@ -654,11 +552,11 @@ class _ActivityState extends State<_Activity> {
           ..._levels.map((opt) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: _GoalCard(
-                  icon: opt.icon,
-                  title: opt.title,
-                  sub: opt.sub,
-                  selected: _level == opt.value,
-                  onTap: () => setState(() => _level = opt.value),
+                  emoji: opt['emoji']!,
+                  title: opt['title']!,
+                  sub: opt['sub']!,
+                  selected: _level == opt['value'],
+                  onTap: () => setState(() => _level = opt['value']!),
                 ),
               )),
           const Spacer(),
@@ -674,45 +572,32 @@ class _ActivityState extends State<_Activity> {
     );
   }
 
-  static const _levels = <_ActivityOption>[
-    _ActivityOption(
-      value: 'couch',
-      icon: Icons.weekend_rounded,
-      title: 'Couch life',
-      sub: 'Desk job, no real exercise',
-    ),
-    _ActivityOption(
-      value: 'light',
-      icon: Icons.directions_walk_rounded,
-      title: 'Light',
-      sub: 'Walk a bit, gym 1–2 times a week',
-    ),
-    _ActivityOption(
-      value: 'active',
-      icon: Icons.directions_run_rounded,
-      title: 'Active',
-      sub: 'Train 3–5 times a week',
-    ),
-    _ActivityOption(
-      value: 'athlete',
-      icon: Icons.fitness_center_rounded,
-      title: 'Athlete',
-      sub: 'Daily training, manual job, or both',
-    ),
+  static const _levels = [
+    {
+      'value': 'couch',
+      'emoji': '🛋️',
+      'title': 'Couch life',
+      'sub': 'Desk job, no real exercise',
+    },
+    {
+      'value': 'light',
+      'emoji': '🚶',
+      'title': 'Light',
+      'sub': 'Walk a bit, gym 1–2 times a week',
+    },
+    {
+      'value': 'active',
+      'emoji': '🏃',
+      'title': 'Active',
+      'sub': 'Train 3–5 times a week',
+    },
+    {
+      'value': 'athlete',
+      'emoji': '🏋️',
+      'title': 'Athlete',
+      'sub': 'Daily training, manual job, or both',
+    },
   ];
-}
-
-class _ActivityOption {
-  final String value;
-  final IconData icon;
-  final String title;
-  final String sub;
-  const _ActivityOption({
-    required this.value,
-    required this.icon,
-    required this.title,
-    required this.sub,
-  });
 }
 
 // ============================================================================
@@ -804,10 +689,10 @@ class _DietState extends State<_Diet> {
     );
   }
 
-  TextStyle _labelStyle() => const TextStyle(
+  TextStyle _labelStyle() => TextStyle(
         fontSize: 13,
-        color: AppColors.textPrimary,
-        fontWeight: FontWeight.w800,
+        color: AppColors.textHint,
+        fontWeight: FontWeight.w700,
         letterSpacing: 0.6,
       );
 }
@@ -834,26 +719,45 @@ class _ToneState extends State<_Tone> {
   late String _tone = widget.draft.tone;
   late bool _ack = widget.draft.edSafetyAcknowledged;
 
-  static const _tones = ['polite', 'cheeky', 'savage'];
+  static const _tones = [
+    {
+      'value': 'polite',
+      'emoji': '🤝',
+      'title': 'Polite',
+      'sub': '"Lovely choice — let\'s keep it light tonight."',
+    },
+    {
+      'value': 'cheeky',
+      'emoji': '😏',
+      'title': 'Cheeky',
+      'sub': '"Right, you\'ve absolutely demolished lunch — onwards."',
+    },
+    {
+      'value': 'savage',
+      'emoji': '🔥',
+      'title': 'Savage',
+      'sub': '"Third croissant. Bold. We\'re fixing this together."',
+    },
+  ];
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
+    return Padding(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-      physics: const BouncingScrollPhysics(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _Title('Pick your Caliana'),
-          const _Subtitle(
-              'Same character, three modes. Switch any time in Settings.'),
+          const _Title('Pick Caliana\'s tone'),
+          const _Subtitle('You can change this any time in Settings.'),
           const SizedBox(height: 22),
-          ..._tones.map((value) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: CharacterCard(
-                  value: value,
-                  selected: _tone == value,
-                  onTap: () => setState(() => _tone = value),
+          ..._tones.map((opt) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _GoalCard(
+                  emoji: opt['emoji']!,
+                  title: opt['title']!,
+                  sub: opt['sub']!,
+                  selected: _tone == opt['value'],
+                  onTap: () => setState(() => _tone = opt['value']!),
                 ),
               )),
           const SizedBox(height: 14),
@@ -919,7 +823,7 @@ class _ToneState extends State<_Tone> {
               ),
             ),
           ),
-          const SizedBox(height: 22),
+          const Spacer(),
           _PrimaryButton(
             label: 'Continue',
             enabled: _ack,
@@ -931,7 +835,6 @@ class _ToneState extends State<_Tone> {
               widget.onNext();
             },
           ),
-          const SizedBox(height: 12),
         ],
       ),
     );
@@ -981,7 +884,7 @@ class _NotificationsState extends State<_Notifications> {
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: _GoalCard(
-                icon: Icons.notifications_active_rounded,
+                emoji: '🔔',
                 title: w['label'] as String,
                 sub: w['sub'] as String,
                 selected: selected,
@@ -1063,53 +966,32 @@ class _PlanRevealState extends State<_PlanReveal> {
           Center(
             child: Column(
               children: [
-                ShaderMask(
-                  shaderCallback: (rect) => const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF5A8AFF), Color(0xFF1F4FE0)],
-                  ).createShader(rect),
-                  child: Text(
-                    '$_shownKcal',
-                    style: const TextStyle(
-                      fontSize: 96,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      letterSpacing: -3,
-                      fontFeatures: [FontFeature.tabularFigures()],
-                    ),
+                Text(
+                  '$_shownKcal',
+                  style: const TextStyle(
+                    fontSize: 96,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.accent,
+                    letterSpacing: -3,
+                    fontFeatures: [FontFeature.tabularFigures()],
                   ),
                 ),
-                const Text(
+                Text(
                   'kcal per day',
                   style: TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    color: AppColors.textHint,
                     letterSpacing: 1.4,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 20),
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: AppColors.surfaceBorder,
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            decoration: GlassDecoration.card(opacity: 0.05),
             child: Column(
               children: [
                 _planRow('Protein', '${p.dailyProteinGrams} g',
@@ -1141,10 +1023,9 @@ class _PlanRevealState extends State<_PlanReveal> {
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
               ),
             ),
           ),
@@ -1152,7 +1033,7 @@ class _PlanRevealState extends State<_PlanReveal> {
             value,
             style: const TextStyle(
               fontSize: 16,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.w800,
               color: AppColors.textPrimary,
               letterSpacing: -0.3,
             ),
@@ -1188,13 +1069,13 @@ class _SocialProof extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          _promise(Icons.verified_rounded, 'Honest billing',
+          _promise('💯', 'Honest billing',
               'Cancel in two taps. No tricks, no hidden weekly charges.'),
           const SizedBox(height: 10),
-          _promise(Icons.favorite_rounded, 'No body shame',
+          _promise('🤝', 'No body shame',
               'She\'ll roast your choices, never your body. Pick Polite anytime.'),
           const SizedBox(height: 10),
-          _promise(Icons.auto_awesome_rounded, 'Fix bad days',
+          _promise('🛠️', 'Fix bad days',
               'Blow lunch? She rebuilds the next 1–3 days, not just nags you.'),
           const Spacer(),
           _PrimaryButton(label: 'Show me', onTap: onNext),
@@ -1203,45 +1084,15 @@ class _SocialProof extends StatelessWidget {
     );
   }
 
-  Widget _promise(IconData icon, String title, String body) {
+  Widget _promise(String emoji, String title, String body) {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceBorder, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      decoration: GlassDecoration.card(opacity: 0.05),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF5A8AFF), Color(0xFF2F6BFF)],
-              ),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.22),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Icon(icon, color: Colors.white, size: 20),
-          ),
-          const SizedBox(width: 14),
+          Text(emoji, style: const TextStyle(fontSize: 20)),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1249,8 +1100,8 @@ class _SocialProof extends StatelessWidget {
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
                     color: AppColors.textPrimary,
                     letterSpacing: -0.2,
                   ),
@@ -1258,10 +1109,9 @@ class _SocialProof extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   body,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w500,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
                     height: 1.4,
                   ),
                 ),
@@ -1275,143 +1125,42 @@ class _SocialProof extends StatelessWidget {
 }
 
 // ============================================================================
-// SCREEN 10 — Soft paywall (the gift)
+// SCREEN 10 — Soft paywall
 // ============================================================================
-class _SoftPaywall extends StatefulWidget {
+class _SoftPaywall extends StatelessWidget {
   final VoidCallback onContinueFree;
   final VoidCallback onSubscribe;
 
   const _SoftPaywall({required this.onContinueFree, required this.onSubscribe});
 
   @override
-  State<_SoftPaywall> createState() => _SoftPaywallState();
-}
-
-class _SoftPaywallState extends State<_SoftPaywall>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..forward();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  static const _giftBlue = Color(0xFF2F6BFF);
-  static const _giftBlueLight = Color(0xFF5A8AFF);
-
-  @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
-      physics: const BouncingScrollPhysics(),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Gift hero — no grey, no emoji.
-          Center(
-            child: Container(
-              width: 96,
-              height: 96,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [_giftBlueLight, _giftBlue],
-                ),
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [
-                  BoxShadow(
-                    color: _giftBlue.withValues(alpha: 0.35),
-                    blurRadius: 28,
-                    offset: const Offset(0, 12),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.card_giftcard_rounded,
-                color: Colors.white,
-                size: 48,
-              ),
-            ),
-          ),
+          const _Title('Try Caliana Pro'),
+          const _Subtitle('3 days free. Cancel any time, two taps.'),
           const SizedBox(height: 22),
-          const Text(
-            'A gift from Caliana.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.w900,
-              color: AppColors.textPrimary,
-              letterSpacing: -1.2,
-              height: 1.05,
-            ),
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            '3 days of full access. Properly free —\nno card, no catch, no nonsense.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-              height: 1.45,
-              letterSpacing: -0.1,
-            ),
-          ),
-          const SizedBox(height: 26),
-          _animatedRow(0, Icons.camera_alt_rounded,
-              'Snap anything', 'She works out the calories.'),
-          _animatedRow(1, Icons.graphic_eq_rounded,
-              'Hear her voice', 'British, sharp, on demand.'),
-          _animatedRow(2, Icons.auto_awesome_rounded,
-              'She fixes bad days', 'Tomorrow rebuilds itself.'),
-          _animatedRow(3, Icons.restaurant_rounded,
-              'Real recipes', 'From the world\'s kitchens, scaled to your day.'),
-          const SizedBox(height: 28),
-          _PrimaryButton(
-            label: 'Claim my 3 days',
-            onTap: () async {
-              HapticFeedback.mediumImpact();
-              // Push the real paywall so live store prices show. The
-              // gift trial is already running locally regardless of
-              // what they pick — so finishing onboarding either way
-              // is fine.
-              final purchased = await Navigator.of(context).push<bool>(
-                MaterialPageRoute(
-                  builder: (_) =>
-                      const PaywallScreen(triggerText: 'onboarding'),
-                ),
-              );
-              if (purchased == true) {
-                await UsageService.instance.setPro(true);
-              }
-              widget.onSubscribe();
-            },
-          ),
-          const SizedBox(height: 10),
-          Center(
-            child: GestureDetector(
-              onTap: widget.onContinueFree,
+          _feature('🤳', 'Unlimited photo logging', 'Free tier: 1 a day'),
+          _feature('🗣️', 'Voice replies (ElevenLabs)', 'Hear Caliana out loud'),
+          _feature('📅', 'Multi-day rebuild plans', 'Fix a bad week, properly'),
+          _feature('🎨', 'Sunday recap share-card', 'Caliana wrap, exportable'),
+          const Spacer(),
+          _PrimaryButton(label: 'Start 3-day free trial', onTap: onSubscribe),
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: onContinueFree,
+            child: Center(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.all(8.0),
                 child: Text(
-                  'Just take me in',
+                  'Continue with the free tier',
                   style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
-                    letterSpacing: -0.1,
+                    fontSize: 13,
+                    color: AppColors.textHint,
+                    decoration: TextDecoration.underline,
                   ),
                 ),
               ),
@@ -1422,53 +1171,13 @@ class _SoftPaywallState extends State<_SoftPaywall>
     );
   }
 
-  Widget _animatedRow(int i, IconData icon, String title, String sub) {
-    final start = (i * 0.12).clamp(0.0, 1.0);
-    final end = (start + 0.55).clamp(0.0, 1.0);
-    final t = CurvedAnimation(
-      parent: _ctrl,
-      curve: Interval(start, end, curve: Curves.easeOutCubic),
-    );
-    return AnimatedBuilder(
-      animation: t,
-      builder: (_, __) {
-        return Opacity(
-          opacity: t.value,
-          child: Transform.translate(
-            offset: Offset(0, (1 - t.value) * 14),
-            child: _featureRow(icon, title, sub),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _featureRow(IconData icon, String title, String sub) {
+  Widget _feature(String emoji, String title, String sub) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 9),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [_giftBlueLight, _giftBlue],
-              ),
-              borderRadius: BorderRadius.circular(13),
-              boxShadow: [
-                BoxShadow(
-                  color: _giftBlue.withValues(alpha: 0.22),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Icon(icon, color: Colors.white, size: 22),
-          ),
-          const SizedBox(width: 14),
+          Text(emoji, style: const TextStyle(fontSize: 22)),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1477,19 +1186,15 @@ class _SoftPaywallState extends State<_SoftPaywall>
                   title,
                   style: const TextStyle(
                     fontSize: 15,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
-                    letterSpacing: -0.2,
                   ),
                 ),
-                const SizedBox(height: 2),
                 Text(
                   sub,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textPrimary,
-                    height: 1.35,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textHint,
                   ),
                 ),
               ],
@@ -1512,11 +1217,11 @@ class _Title extends StatelessWidget {
     return Text(
       text,
       style: const TextStyle(
-        fontSize: 34,
+        fontSize: 30,
         fontWeight: FontWeight.w900,
         color: AppColors.textPrimary,
-        letterSpacing: -1.2,
-        height: 1.05,
+        letterSpacing: -1,
+        height: 1.1,
       ),
     );
   }
@@ -1528,15 +1233,13 @@ class _Subtitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.only(top: 6),
       child: Text(
         text,
-        style: const TextStyle(
-          fontSize: 15,
-          color: AppColors.textPrimary,
+        style: TextStyle(
+          fontSize: 14,
+          color: AppColors.textSecondary,
           height: 1.4,
-          fontWeight: FontWeight.w500,
-          letterSpacing: -0.1,
         ),
       ),
     );
@@ -1621,39 +1324,27 @@ class _SegButton extends StatelessWidget {
         onTap();
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        height: 52,
+        duration: const Duration(milliseconds: 200),
+        height: 50,
         decoration: BoxDecoration(
-          color: selected ? AppColors.primarySoft : Colors.white,
+          color: selected
+              ? AppColors.accent.withValues(alpha: 0.15)
+              : Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: selected ? AppColors.primary : AppColors.surfaceBorder,
-            width: selected ? 1.6 : 1,
+            color: selected
+                ? AppColors.accent.withValues(alpha: 0.5)
+                : Colors.white.withValues(alpha: 0.10),
+            width: selected ? 1.4 : 1,
           ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.18),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.03),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
         ),
         child: Center(
           child: Text(
             label,
             style: TextStyle(
               fontSize: 14,
-              fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-              color: selected ? AppColors.primary : AppColors.textPrimary,
-              letterSpacing: -0.1,
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+              color: selected ? AppColors.textPrimary : AppColors.textSecondary,
             ),
           ),
         ),
@@ -1663,14 +1354,14 @@ class _SegButton extends StatelessWidget {
 }
 
 class _GoalCard extends StatelessWidget {
-  final IconData icon;
+  final String emoji;
   final String title;
   final String sub;
   final bool selected;
   final VoidCallback onTap;
 
   const _GoalCard({
-    required this.icon,
+    required this.emoji,
     required this.title,
     required this.sub,
     required this.selected,
@@ -1685,49 +1376,23 @@ class _GoalCard extends StatelessWidget {
         onTap();
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
+          color: selected
+              ? AppColors.accent.withValues(alpha: 0.12)
+              : Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: selected
-                ? AppColors.primary
-                : AppColors.surfaceBorder,
-            width: selected ? 1.8 : 1,
+                ? AppColors.accent.withValues(alpha: 0.5)
+                : Colors.white.withValues(alpha: 0.10),
+            width: selected ? 1.4 : 1,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: selected
-                  ? AppColors.primary.withValues(alpha: 0.18)
-                  : Colors.black.withValues(alpha: 0.04),
-              blurRadius: selected ? 18 : 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
         ),
         child: Row(
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF5A8AFF), Color(0xFF2F6BFF)],
-                ),
-                borderRadius: BorderRadius.circular(13),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.22),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Icon(icon, color: Colors.white, size: 22),
-            ),
+            Text(emoji, style: const TextStyle(fontSize: 28)),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -1745,34 +1410,18 @@ class _GoalCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     sub,
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w500,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
                       height: 1.3,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              width: 22,
-              height: 22,
-              decoration: BoxDecoration(
-                color: selected ? AppColors.primary : Colors.white,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: selected ? AppColors.primary : AppColors.surfaceBorder,
-                  width: 1.6,
-                ),
-              ),
-              child: selected
-                  ? const Icon(Icons.check_rounded,
-                      color: Colors.white, size: 16)
-                  : null,
-            ),
+            if (selected)
+              const Icon(Icons.check_circle_rounded,
+                  color: AppColors.accent, size: 22),
           ],
         ),
       ),
@@ -1798,32 +1447,26 @@ class _PillChip extends StatelessWidget {
         onTap();
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
+        duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? AppColors.primary : Colors.white,
+          color: selected
+              ? AppColors.accent.withValues(alpha: 0.18)
+              : Colors.white.withValues(alpha: 0.04),
           borderRadius: BorderRadius.circular(50),
           border: Border.all(
-            color: selected ? AppColors.primary : AppColors.surfaceBorder,
-            width: 1.2,
+            color: selected
+                ? AppColors.accent.withValues(alpha: 0.5)
+                : Colors.white.withValues(alpha: 0.10),
+            width: selected ? 1.3 : 1,
           ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.28),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
         ),
         child: Text(
           label,
           style: TextStyle(
             fontSize: 13,
-            fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-            color: selected ? Colors.white : AppColors.textPrimary,
-            letterSpacing: -0.1,
+            fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+            color: selected ? AppColors.textPrimary : AppColors.textSecondary,
           ),
         ),
       ),
@@ -1853,22 +1496,8 @@ class _SliderRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.surfaceBorder,
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+      decoration: GlassDecoration.card(opacity: 0.04, radius: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1877,10 +1506,10 @@ class _SliderRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w800,
+                    color: AppColors.textHint,
+                    fontWeight: FontWeight.w700,
                     letterSpacing: 0.6,
                   ),
                 ),
@@ -1888,9 +1517,9 @@ class _SliderRow extends StatelessWidget {
               Text(
                 display,
                 style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.primary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
                   letterSpacing: -0.3,
                   fontFeatures: [FontFeature.tabularFigures()],
                 ),
@@ -1899,14 +1528,14 @@ class _SliderRow extends StatelessWidget {
           ),
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
-              trackHeight: 4,
+              trackHeight: 3,
               thumbShape: const RoundSliderThumbShape(
                 enabledThumbRadius: 10,
               ),
-              activeTrackColor: AppColors.primary,
-              inactiveTrackColor: AppColors.surfaceBorder,
-              thumbColor: AppColors.primary,
-              overlayColor: AppColors.primary.withValues(alpha: 0.15),
+              activeTrackColor: AppColors.accent,
+              inactiveTrackColor: Colors.white.withValues(alpha: 0.08),
+              thumbColor: AppColors.accent,
+              overlayColor: AppColors.accent.withValues(alpha: 0.15),
             ),
             child: Slider(
               value: value.clamp(min, max),
@@ -1918,59 +1547,6 @@ class _SliderRow extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Wraps every onboarding page with a soft fade + upward-slide entrance.
-/// Triggered by the `key` swap when PageView navigates between screens
-/// — so each screen lands with a polished animation instead of a jump.
-class _FadeSlideIn extends StatefulWidget {
-  final Widget child;
-  const _FadeSlideIn({super.key, required this.child});
-
-  @override
-  State<_FadeSlideIn> createState() => _FadeSlideInState();
-}
-
-class _FadeSlideInState extends State<_FadeSlideIn>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _t;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 480),
-    );
-    _t = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _ctrl.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _t,
-      builder: (_, child) {
-        return Opacity(
-          opacity: _t.value,
-          child: Transform.translate(
-            offset: Offset(0, (1 - _t.value) * 18),
-            child: child,
-          ),
-        );
-      },
-      child: widget.child,
     );
   }
 }

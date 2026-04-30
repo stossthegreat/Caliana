@@ -15,20 +15,19 @@ class QuickAction {
   });
 }
 
-/// Horizontal scroller of preset chips. First chip is "Fix my day" —
-/// blue gradient + pulsing — same SIZE as the others, just visually loud.
+/// Two-row Wrap of preset chips. First chip is "Fix my day" — blue
+/// gradient + pulsing — same SIZE as the others, just visually loud.
+/// Layout chosen so users see every preset at once without scrolling.
 class QuickActionsBar extends StatelessWidget {
   final void Function(String id) onTap;
 
   const QuickActionsBar({super.key, required this.onTap});
 
-  // Two flagship actions: "Fix my day" stays on Today (suggest dinner
-  // that lands them on goal). "Fix tomorrow" routes straight to the
-  // Plan tab (which is already focused on tomorrow).
+  // 'Log meal' was removed — it focused the text field but the input
+  // dock now has a dedicated 'Type' toggle, so the chip was redundant
+  // (and was reported as broken in QA).
   static const actions = <QuickAction>[
     QuickAction('fix_my_day', '⚡', 'Fix my day', primary: true),
-    QuickAction('fix_tomorrow', '📅', 'Fix tomorrow'),
-    QuickAction('log_meal', '🍝', 'Log meal'),
     QuickAction('high_protein', '🍗', 'High protein'),
     QuickAction('eat_clean', '🥗', 'Eat clean'),
     QuickAction('had_junk', '🍔', 'Had junk'),
@@ -37,16 +36,13 @@ class QuickActionsBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 36,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: actions.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 7),
-        itemBuilder: (_, i) {
-          final a = actions[i];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 4),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        alignment: WrapAlignment.start,
+        children: actions.map((a) {
           if (a.primary) {
             return _PulsingPrimaryChip(
               action: a,
@@ -63,7 +59,7 @@ class QuickActionsBar extends StatelessWidget {
               onTap(a.id);
             },
           );
-        },
+        }).toList(),
       ),
     );
   }

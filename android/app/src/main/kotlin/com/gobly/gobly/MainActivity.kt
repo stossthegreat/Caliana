@@ -1,4 +1,4 @@
-package com.caliana.caliana
+package com.gobly.gobly
 
 import io.flutter.embedding.android.FlutterActivity
 

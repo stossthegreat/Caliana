@@ -9,13 +9,13 @@ class AppSettingsService extends ChangeNotifier {
   static final AppSettingsService _instance = AppSettingsService._();
   static AppSettingsService get instance => _instance;
 
-  static const _backendUrlKey = 'caliana_backend_url_v1';
+  static const _backendUrlKey = 'gobly_backend_url_v1';
 
   /// Production Railway URL — always falls back to this if nothing else is set.
   /// Can be overridden at runtime (Settings) or at build time via
   /// --dart-define=BACKEND_URL=...
   static const String productionDefault =
-      'https://caliana-production.up.railway.app';
+      'https://recimobackend-production.up.railway.app';
 
   /// Compile-time override only — does NOT apply when empty.
   static const String _compileTimeOverride = String.fromEnvironment(
@@ -40,7 +40,6 @@ class AppSettingsService extends ChangeNotifier {
     return lower.contains('localhost') ||
         lower.contains('127.0.0.1') ||
         lower.contains('10.0.2.2') || // Android emulator loopback
-        lower.contains('recimobackend') || // old service, retired
         !lower.startsWith('http');
   }
 

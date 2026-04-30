@@ -1,14 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/food_entry.dart';
 import '../models/user_profile.dart';
 import '../models/day_log.dart';
 import '../models/meal_idea.dart';
+import 'consent_service.dart';
 export '../models/meal_idea.dart';
 import 'app_settings_service.dart';
 import 'user_profile_service.dart';
@@ -31,6 +30,11 @@ class CalianaService {
 
   String get _baseUrl => AppSettingsService.instance.backendUrl;
 
+  /// Apple 5.1.1(i) / 5.1.2(i): no third-party AI calls until the user
+  /// has granted explicit consent. Returns false → callers fall back to
+  /// local-only behaviour (offline reply, no photo upload, etc).
+  bool get _aiAllowed => ConsentService.instance.granted;
+
   // ---------------------------------------------------------------------------
   // Chat
   // ---------------------------------------------------------------------------
@@ -38,7 +42,7 @@ class CalianaService {
     final profile = UserProfileService.instance.profile;
     final today = DayLogService.instance.today;
 
-    if (_baseUrl.isEmpty) {
+    if (_baseUrl.isEmpty || !_aiAllowed) {
       return _localFallbackReply(userText, profile, today);
     }
 
@@ -46,9 +50,7 @@ class CalianaService {
       'message': userText,
       'tone': profile.tone,
       'user': profile.toAgentContext(),
-      'firstName': _firstName(profile.name),
       'day': _dayContext(today, profile),
-      'recentPattern': _recentPatternContext(profile),
       'trigger': trigger,
     });
 
@@ -61,18 +63,11 @@ class CalianaService {
           )
           .timeout(const Duration(seconds: 25));
       if (res.statusCode != 200) {
-        debugPrint('Caliana chat ${res.statusCode}: ${res.body}');
         return _localFallbackReply(userText, profile, today);
       }
       final data = jsonDecode(res.body) as Map<String, dynamic>;
-      final text = (data['text'] as String?)?.trim() ?? '';
-      if (text.isEmpty) {
-        // Backend OK but model returned empty. Fall back so the bubble
-        // never renders silent.
-        return _localFallbackReply(userText, profile, today);
-      }
       return CalianaReply(
-        text: text,
+        text: (data['text'] as String?)?.trim() ?? '',
         actionChips: List<String>.from(data['actionChips'] ?? const []),
       );
     } catch (e) {
@@ -85,78 +80,27 @@ class CalianaService {
   // Voice — ElevenLabs TTS. Returns local mp3 path, or null on failure.
   // ---------------------------------------------------------------------------
   Future<String?> synthesizeVoice(String text) async {
-    if (_baseUrl.isEmpty || text.trim().isEmpty) return null;
-    final tone = UserProfileService.instance.profile.tone;
+    if (_baseUrl.isEmpty || !_aiAllowed || text.trim().isEmpty) return null;
     try {
       final res = await http
           .post(
             Uri.parse('$_baseUrl/api/caliana-voice'),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'text': text.trim(), 'tone': tone}),
+            body: jsonEncode({'text': text.trim()}),
           )
           .timeout(const Duration(seconds: 20));
-      if (res.statusCode != 200) {
-        final msg =
-            res.body.length > 400 ? '${res.body.substring(0, 400)}…' : res.body;
-        debugPrint('🔇 Caliana voice ${res.statusCode}: $msg');
-        _lastVoiceError = 'Voice ${res.statusCode}: $msg';
-        return null;
-      }
-      if (res.bodyBytes.isEmpty) {
-        debugPrint('🔇 Caliana voice: 200 OK but empty body');
-        _lastVoiceError = 'Voice route returned empty audio';
-        return null;
-      }
+      if (res.statusCode != 200 || res.bodyBytes.isEmpty) return null;
 
       final dir = await getTemporaryDirectory();
       final file = File(
         '${dir.path}/caliana_voice_${DateTime.now().millisecondsSinceEpoch}.mp3',
       );
       await file.writeAsBytes(res.bodyBytes, flush: true);
-      _lastVoiceError = null;
       return file.path;
     } catch (e) {
-      debugPrint('🔇 Caliana voice error: $e');
-      _lastVoiceError = 'Voice error: $e';
+      debugPrint('Caliana voice error: $e');
       return null;
     }
-  }
-
-  /// Last error from synthesizeVoice — surfaced in a SnackBar by today_screen
-  /// once per session so the user knows when voice is silent.
-  String? _lastVoiceError;
-  String? get lastVoiceError => _lastVoiceError;
-  void clearLastVoiceError() => _lastVoiceError = null;
-
-  /// Hit the backend's /api/diagnose endpoint. Returns the parsed JSON or
-  /// throws with a useful message. Used by the Settings "Test voice"
-  /// button so the user can see exactly what's broken without hunting in
-  /// device logs.
-  Future<Map<String, dynamic>> diagnose() async {
-    if (_baseUrl.isEmpty) {
-      throw Exception('Backend URL not set');
-    }
-    final res = await http
-        .get(Uri.parse('$_baseUrl/api/diagnose'))
-        .timeout(const Duration(seconds: 15));
-    if (res.statusCode != 200) {
-      throw Exception('Diagnose ${res.statusCode}: ${res.body}');
-    }
-    return jsonDecode(res.body) as Map<String, dynamic>;
-  }
-
-  /// End-to-end voice test: synthesise a short line, return the local
-  /// file path so the caller can play it. Throws with a precise reason
-  /// if anything is off.
-  Future<String> testVoice() async {
-    if (_baseUrl.isEmpty) {
-      throw Exception('Backend URL not set');
-    }
-    final path = await synthesizeVoice('Right then. Voice check, all working.');
-    if (path == null) {
-      throw Exception(_lastVoiceError ?? 'Voice synthesis returned no audio');
-    }
-    return path;
   }
 
   // ---------------------------------------------------------------------------
@@ -169,7 +113,7 @@ class CalianaService {
     final remaining =
         (profile.dailyCalorieGoal - today.totalCalories).clamp(0, 6000);
 
-    if (_baseUrl.isEmpty) return const [];
+    if (_baseUrl.isEmpty || !_aiAllowed) return const [];
     try {
       final res = await http
           .post(
@@ -205,20 +149,13 @@ class CalianaService {
     final remaining =
         (profile.dailyCalorieGoal - today.totalCalories).clamp(0, 6000);
 
-    if (_baseUrl.isEmpty) return const [];
+    if (_baseUrl.isEmpty || !_aiAllowed) return const [];
     try {
       final req = http.MultipartRequest(
         'POST',
         Uri.parse('$_baseUrl/api/fridge-suggest'),
       );
-      final fridgeMime = photoPath.toLowerCase().endsWith('.png')
-          ? MediaType('image', 'png')
-          : MediaType('image', 'jpeg');
-      req.files.add(await http.MultipartFile.fromPath(
-        'photo',
-        photoPath,
-        contentType: fridgeMime,
-      ));
+      req.files.add(await http.MultipartFile.fromPath('photo', photoPath));
       req.fields['remainingKcal'] = remaining.toString();
       req.fields['userContext'] = profile.toAgentContext();
 
@@ -237,74 +174,13 @@ class CalianaService {
   }
 
   // ---------------------------------------------------------------------------
-  // Day plan — 4 meals (breakfast/lunch/dinner/snack) for a target day.
-  // Returns slot-tagged MealIdeas with images; the caller converts to
-  // PlannedMeal and persists via PlanService.
-  // ---------------------------------------------------------------------------
-  Future<List<MealIdea>> generateDayPlan({
-    String mode = 'normal',
-    int? targetKcalOverride,
-    int absorbingDeltaKcal = 0,
-  }) async {
-    if (_baseUrl.isEmpty) return const [];
-    final profile = UserProfileService.instance.profile;
-    try {
-      final res = await http
-          .post(
-            Uri.parse('$_baseUrl/api/plan-day'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'dailyCalorieGoal': profile.dailyCalorieGoal,
-              'dailyProteinGoal': profile.dailyProteinGrams,
-              'userContext': profile.toAgentContext(),
-              'tone': profile.tone,
-              'mode': mode,
-              if (targetKcalOverride != null)
-                'targetKcalOverride': targetKcalOverride,
-              if (absorbingDeltaKcal > 0)
-                'absorbingDeltaKcal': absorbingDeltaKcal,
-            }),
-          )
-          .timeout(const Duration(seconds: 45));
-      if (res.statusCode != 200) {
-        debugPrint('plan-day ${res.statusCode}: ${res.body}');
-        return const [];
-      }
-      final data = jsonDecode(res.body) as Map<String, dynamic>;
-      final list = (data['slots'] as List? ?? const []);
-      return list.map((e) {
-        final m = e as Map<String, dynamic>;
-        final idea = MealIdea.fromJson(m);
-        // Stash the slot in description so the caller can read it back
-        // (ChatMessage / PlannedMeal carries it explicitly).
-        return MealIdea(
-          name: idea.name,
-          calories: idea.calories,
-          protein: idea.protein,
-          carbs: idea.carbs,
-          fat: idea.fat,
-          ingredients: idea.ingredients,
-          steps: idea.steps,
-          imageUrl: idea.imageUrl,
-          description: m['slot'] as String?,
-          servings: 1,
-        );
-      }).toList();
-    } catch (e) {
-      debugPrint('plan-day error: $e');
-      return const [];
-    }
-  }
-
-  // ---------------------------------------------------------------------------
   // Food parsing — text / voice transcript → FoodEntry
   // ---------------------------------------------------------------------------
   Future<FoodEntry?> parseFoodFromText(String text, {required String inputMethod}) async {
     if (text.trim().isEmpty) return null;
 
-    if (_baseUrl.isEmpty) {
-      _lastFoodLogError = 'Backend URL not set — connect to Caliana';
-      return null;
+    if (_baseUrl.isEmpty || !_aiAllowed) {
+      return _localFallbackEntry(text, inputMethod: inputMethod);
     }
 
     try {
@@ -316,20 +192,15 @@ class CalianaService {
           )
           .timeout(const Duration(seconds: 20));
       if (res.statusCode != 200) {
-        _lastFoodLogError =
-            'Couldn\'t analyse that. (${res.statusCode})';
-        debugPrint('parseFoodFromText ${res.statusCode}: ${res.body}');
-        return null;
+        return _localFallbackEntry(text, inputMethod: inputMethod);
       }
-      _lastFoodLogError = null;
       return _entryFromJson(
         jsonDecode(res.body) as Map<String, dynamic>,
         inputMethod: inputMethod,
       );
     } catch (e) {
       debugPrint('parseFoodFromText error: $e');
-      _lastFoodLogError = 'Couldn\'t reach Caliana — check connection';
-      return null;
+      return _localFallbackEntry(text, inputMethod: inputMethod);
     }
   }
 
@@ -337,9 +208,12 @@ class CalianaService {
   // Food parsing — photo path → FoodEntry
   // ---------------------------------------------------------------------------
   Future<FoodEntry?> parseFoodFromPhoto(String photoPath, {String? hint}) async {
-    if (_baseUrl.isEmpty) {
-      _lastFoodLogError = 'Backend URL not set — connect to Caliana';
-      return null;
+    if (_baseUrl.isEmpty || !_aiAllowed) {
+      return _localFallbackEntry(
+        hint ?? 'Photographed meal',
+        inputMethod: 'photo',
+        photoPath: photoPath,
+      );
     }
 
     try {
@@ -347,31 +221,18 @@ class CalianaService {
         'POST',
         Uri.parse('$_baseUrl/api/log-photo'),
       );
-      // Force a JPEG content type — image_picker's MultipartFile.fromPath
-      // sometimes derives octet-stream which the backend's multipart
-      // parser can fall through, ending in an empty buffer.
-      final mime = photoPath.toLowerCase().endsWith('.png')
-          ? MediaType('image', 'png')
-          : MediaType('image', 'jpeg');
-      req.files.add(await http.MultipartFile.fromPath(
-        'photo',
-        photoPath,
-        contentType: mime,
-      ));
+      req.files.add(await http.MultipartFile.fromPath('photo', photoPath));
       if (hint != null && hint.isNotEmpty) req.fields['hint'] = hint;
 
-      final streamed = await req.send().timeout(const Duration(seconds: 60));
+      final streamed = await req.send().timeout(const Duration(seconds: 30));
       final res = await http.Response.fromStream(streamed);
       if (res.statusCode != 200) {
-        final brief = res.body.length > 200
-            ? '${res.body.substring(0, 200)}…'
-            : res.body;
-        _lastFoodLogError =
-            'Vision failed (${res.statusCode}). $brief';
-        debugPrint('parseFoodFromPhoto ${res.statusCode}: ${res.body}');
-        return null;
+        return _localFallbackEntry(
+          hint ?? 'Photographed meal',
+          inputMethod: 'photo',
+          photoPath: photoPath,
+        );
       }
-      _lastFoodLogError = null;
       return _entryFromJson(
         jsonDecode(res.body) as Map<String, dynamic>,
         inputMethod: 'photo',
@@ -379,16 +240,13 @@ class CalianaService {
       );
     } catch (e) {
       debugPrint('parseFoodFromPhoto error: $e');
-      _lastFoodLogError = 'Couldn\'t reach vision: $e';
-      return null;
+      return _localFallbackEntry(
+        hint ?? 'Photographed meal',
+        inputMethod: 'photo',
+        photoPath: photoPath,
+      );
     }
   }
-
-  /// Last food-log failure surfaced via UI snackbar so users never see
-  /// a silent fake "Caesar salad" estimate again.
-  String? _lastFoodLogError;
-  String? get lastFoodLogError => _lastFoodLogError;
-  void clearLastFoodLogError() => _lastFoodLogError = null;
 
   // ---------------------------------------------------------------------------
   // Helpers
@@ -403,76 +261,6 @@ Today so far: $consumed kcal logged of $goal target ($pct%) — $left remaining.
 Macros today: ${today.totalProtein}g P / ${today.totalCarbs}g C / ${today.totalFat}g F.
 Entries today: ${today.entries.length}.
 ''';
-  }
-
-  /// Just the first word of the user's name (or empty). The agent uses
-  /// this for direct address; clinical full names break the vibe.
-  String _firstName(String fullName) {
-    final t = fullName.trim();
-    if (t.isEmpty) return '';
-    final parts = t.split(RegExp(r'\s+'));
-    return parts.first;
-  }
-
-  /// Rolling summary of the last few days so the agent can callback to
-  /// patterns ("third coffee day in a row", "fourth time over this week").
-  /// Empty string if there's nothing logged yet.
-  String _recentPatternContext(UserProfile profile) {
-    final svc = DayLogService.instance;
-    final goal = profile.dailyCalorieGoal;
-    final now = DateTime.now();
-    final summaries = <String>[];
-    int daysWithLogs = 0;
-    int daysOver = 0;
-    int totalCalories = 0;
-    final foodCounts = <String, int>{};
-
-    // Look back 3 days BEFORE today so the agent can reference yesterday
-    // and the day before without double-counting today.
-    for (int i = 1; i <= 3; i++) {
-      final d = now.subtract(Duration(days: i));
-      final log = svc.forDay(d);
-      if (log.entries.isEmpty) continue;
-      daysWithLogs++;
-      final cals = log.totalCalories;
-      totalCalories += cals;
-      if (goal > 0 && cals > goal) daysOver++;
-      summaries.add(
-        '${_dayLabel(i)}: $cals kcal, ${log.entries.length} entries',
-      );
-      for (final e in log.entries) {
-        final name = e.name.toLowerCase().trim();
-        if (name.isEmpty) continue;
-        foodCounts[name] = (foodCounts[name] ?? 0) + 1;
-      }
-    }
-
-    if (daysWithLogs == 0) return '(no entries in the last 3 days)';
-
-    final repeats = foodCounts.entries
-        .where((e) => e.value >= 2)
-        .map((e) => '${e.key} ×${e.value}')
-        .take(3)
-        .toList();
-
-    final avg = (totalCalories / daysWithLogs).round();
-    final lines = <String>[
-      '${summaries.join('; ')}.',
-      'Average: $avg kcal/day across $daysWithLogs day${daysWithLogs == 1 ? '' : 's'}.',
-    ];
-    if (goal > 0 && daysOver > 0) {
-      lines.add('Over goal: $daysOver of $daysWithLogs.');
-    }
-    if (repeats.isNotEmpty) {
-      lines.add('Repeated foods: ${repeats.join(', ')}.');
-    }
-    return lines.join(' ');
-  }
-
-  String _dayLabel(int daysAgo) {
-    if (daysAgo == 1) return 'Yesterday';
-    if (daysAgo == 2) return '2 days ago';
-    return '$daysAgo days ago';
   }
 
   FoodEntry _entryFromJson(
@@ -497,14 +285,8 @@ Entries today: ${today.entries.length}.
 
   // ---------------------------------------------------------------------------
   // Local fallbacks — used until backend routes ship, and as graceful failure.
-  // Tone-aware, randomised, viral-by-default so the UI never feels dead even
-  // when the network is down.
+  // Deterministic so the UI is never empty and demos always work.
   // ---------------------------------------------------------------------------
-  static final Random _rng = Random();
-
-  String _pick(List<String> options) =>
-      options[_rng.nextInt(options.length)];
-
   CalianaReply _localFallbackReply(
     String userText,
     UserProfile profile,
@@ -512,207 +294,84 @@ Entries today: ${today.entries.length}.
   ) {
     final consumed = today.totalCalories;
     final goal = profile.dailyCalorieGoal;
-    final pct = goal == 0 ? 0.0 : consumed * 100.0 / goal;
+    final pct = goal == 0 ? 0 : consumed * 100 / goal;
     final lower = userText.toLowerCase();
-    final tone = profile.tone; // 'polite' | 'cheeky' | 'savage'
 
-    // Specific quick-action triggers — short, decisive, tone-aware.
+    // Specific quick-action triggers — keep replies tight.
     if (lower.contains('fix my day')) {
-      return CalianaReply(
-        text: _pick(_fixMyDay[tone] ?? _fixMyDay['cheeky']!),
-        actionChips: const ['Suggest dinner'],
-      );
+      return const CalianaReply(text: "Sorted. Dinner adjusted.");
     }
     if (lower.contains('high-protein') || lower.contains('high protein')) {
-      return CalianaReply(
-        text: _pick(_highProtein[tone] ?? _highProtein['cheeky']!),
+      return const CalianaReply(
+        text: "Try chicken bowl or eggs on toast.",
       );
     }
     if (lower.contains('clean')) {
-      return CalianaReply(text: _pick(_clean[tone] ?? _clean['cheeky']!));
+      return const CalianaReply(text: "Salmon + greens. Done.");
     }
     if (lower.contains('junk') || lower.contains('balance')) {
-      return CalianaReply(
-        text: _pick(_balanceJunk[tone] ?? _balanceJunk['cheeky']!),
-      );
+      return const CalianaReply(text: "Alright. I'll balance it.");
     }
     if (lower.contains('quick lunch') || lower.contains('10-minute')) {
+      return const CalianaReply(text: "Tuna wrap. Five minutes.");
+    }
+
+    if (pct < 50) {
+      return const CalianaReply(text: "Clean slate. Don't waste it.");
+    }
+    if (pct < 90) {
       return CalianaReply(
-        text: _pick(_quickLunch[tone] ?? _quickLunch['cheeky']!),
+        text: "Halfway. Dinner stays light.",
       );
     }
-
-    // Calorie-progress reactions — randomised so it never feels canned.
-    final List<String> bucket;
-    final List<String> chips;
-    if (pct < 50) {
-      bucket = _under50[tone] ?? _under50['cheeky']!;
-      chips = const [];
-    } else if (pct < 90) {
-      bucket = _half[tone] ?? _half['cheeky']!;
-      chips = const [];
-    } else if (pct < 110) {
-      bucket = _tight[tone] ?? _tight['cheeky']!;
-      chips = const ['Suggest dinner'];
-    } else {
-      bucket = _over[tone] ?? _over['cheeky']!;
-      chips = const ['Fix the week'];
+    if (pct < 110) {
+      return const CalianaReply(
+        text: "Tight. I'll suggest dinner.",
+        actionChips: ['Suggest dinner'],
+      );
     }
-    return CalianaReply(text: _pick(bucket), actionChips: chips);
+    return const CalianaReply(
+      text: "Over. We rebuild tomorrow.",
+      actionChips: ['Fix the week'],
+    );
   }
 
-  // Quick-action one-liner pools, keyed by tone.
-  static const Map<String, List<String>> _fixMyDay = {
-    'polite': [
-      "Sorted, love. Dinner adjusted.",
-      "Right then — light tea, easy walk.",
-      "On it. We tidy this up.",
-    ],
-    'cheeky': [
-      "Sorted. Dinner stays civil.",
-      "Right, easy fix. Lighter tea.",
-      "Behave. Soup tonight, you menace.",
-      "Fair play. We trim 300 off dinner.",
-    ],
-    'savage': [
-      "Damage report received. Salad for tea.",
-      "We move. Dinner pays the bill.",
-      "Absolute mare. Fixing it now.",
-    ],
-  };
+  FoodEntry _localFallbackEntry(
+    String text, {
+    required String inputMethod,
+    String? photoPath,
+  }) {
+    final base = text.toLowerCase();
+    int kcal = 350;
+    int p = 18, c = 35, f = 14;
+    if (base.contains('salad')) { kcal = 220; p = 10; c = 18; f = 12; }
+    if (base.contains('pizza')) { kcal = 720; p = 28; c = 75; f = 30; }
+    if (base.contains('burger')) { kcal = 650; p = 30; c = 40; f = 36; }
+    if (base.contains('chicken')) { kcal = 420; p = 38; c = 22; f = 16; }
+    if (base.contains('rice')) { kcal = 360; p = 8; c = 65; f = 4; }
+    if (base.contains('pasta')) { kcal = 540; p = 18; c = 70; f = 18; }
+    if (base.contains('coffee')) { kcal = 80; p = 4; c = 6; f = 4; }
+    if (base.contains('apple')) { kcal = 95; p = 0; c = 25; f = 0; }
+    if (base.contains('banana')) { kcal = 105; p = 1; c = 27; f = 0; }
+    return FoodEntry(
+      id: 'fe_${DateTime.now().millisecondsSinceEpoch}',
+      timestamp: DateTime.now(),
+      name: _titleCase(text),
+      calories: kcal,
+      proteinGrams: p,
+      carbsGrams: c,
+      fatGrams: f,
+      inputMethod: inputMethod,
+      photoPath: photoPath,
+      confidence: 'low',
+      notes: 'Estimated locally — backend offline.',
+    );
+  }
 
-  static const Map<String, List<String>> _highProtein = {
-    'polite': [
-      "Lovely. Chicken bowl, eggs on toast.",
-      "Try Greek yoghurt and berries. Tidy.",
-    ],
-    'cheeky': [
-      "Chicken bowl. Eggs on toast. Sorted.",
-      "Greek yog and berries. Behave.",
-      "Tuna wrap. Proper fuel.",
-    ],
-    'savage': [
-      "Chicken. Plain. Like your week deserves.",
-      "Eggs on toast. Decisive choice for once.",
-    ],
-  };
-
-  static const Map<String, List<String>> _clean = {
-    'polite': [
-      "Salmon and greens. Lovely choice.",
-      "Grilled fish, lemon, leaves. Tidy.",
-    ],
-    'cheeky': [
-      "Salmon plus greens. Done.",
-      "Grilled fish, big salad. Smashing.",
-    ],
-    'savage': [
-      "Salmon. Greens. Penance for the croissant.",
-      "Fish and leaves. Unrecognisable behaviour.",
-    ],
-  };
-
-  static const Map<String, List<String>> _balanceJunk = {
-    'polite': [
-      "All good — we balance it tomorrow.",
-      "Right then, light dinner sorts it.",
-    ],
-    'cheeky': [
-      "Alright. We balance it. Behave tomorrow.",
-      "Sorted. Light tea, no further crimes.",
-    ],
-    'savage': [
-      "Confessed. Penance: dinner of leaves.",
-      "Noted, your honour. We rebuild.",
-    ],
-  };
-
-  static const Map<String, List<String>> _quickLunch = {
-    'polite': [
-      "Tuna wrap. Five minutes. Lovely.",
-      "Eggs on toast. Easy and sound.",
-    ],
-    'cheeky': [
-      "Tuna wrap. Five minutes. Sorted.",
-      "Eggs on toast. Behave, that's lunch.",
-    ],
-    'savage': [
-      "Tuna wrap. Five minutes. Try not to ruin it.",
-      "Eggs on toast. Even you can manage.",
-    ],
-  };
-
-  // Calorie-progress pools. Specific, dry, British. No "Reader," / "Behold,".
-  static const Map<String, List<String>> _under50 = {
-    'polite': [
-      "Clean slate, love. Make it count.",
-      "Right then — fresh start. Tidy.",
-      "Plenty of room. Pick something proper.",
-    ],
-    'cheeky': [
-      "Clean slate. Don't waste it.",
-      "Plenty in the tank. Behave.",
-      "Loads of room. Don't blow it on crisps.",
-      "Right, blank canvas. Make it count.",
-    ],
-    'savage': [
-      "Fresh slate. Try not to wreck it by ten.",
-      "Vast reserves. Audacious, given last week.",
-      "Empty diary. Don't get clever.",
-    ],
-  };
-
-  static const Map<String, List<String>> _half = {
-    'polite': [
-      "Halfway there. Light dinner sorts it.",
-      "On track, love. Easy tea tonight.",
-    ],
-    'cheeky': [
-      "Halfway. Dinner stays civil.",
-      "On the rails. Behave at tea.",
-      "Smashing. Don't get cocky.",
-      "Tidy. Light dinner, stay golden.",
-    ],
-    'savage': [
-      "Halfway. Restraint until tea, please.",
-      "Mid-day discipline. Unrecognisable.",
-      "On pace. Astonishing.",
-    ],
-  };
-
-  static const Map<String, List<String>> _tight = {
-    'polite': [
-      "Bit close — light dinner, yeah?",
-      "Snug. I'll pick a small tea.",
-    ],
-    'cheeky': [
-      "Tight. I'll line up a small dinner.",
-      "Cutting it fine. Soup tonight.",
-      "Borderline. Behave at tea.",
-    ],
-    'savage': [
-      "On the wire. Salad pays the toll.",
-      "Snug. The audacity to want dinner.",
-    ],
-  };
-
-  static const Map<String, List<String>> _over = {
-    'polite': [
-      "Over today — we rebuild tomorrow.",
-      "Past it, love. Easy day next.",
-    ],
-    'cheeky': [
-      "Over. We rebuild tomorrow.",
-      "Bit much. Sober dinner sorts it.",
-      "Crime scene. Fixing the week.",
-    ],
-    'savage': [
-      "Absolute scenes. We rebuild — silently.",
-      "Disaster. Tomorrow does the apologising.",
-      "Noted, your honour. The week pays.",
-    ],
-  };
-
+  String _titleCase(String s) {
+    if (s.isEmpty) return s;
+    return s[0].toUpperCase() + s.substring(1);
+  }
 }
 
 class CalianaReply {

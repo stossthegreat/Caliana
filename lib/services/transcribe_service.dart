@@ -33,17 +33,13 @@ class TranscribeService {
     final ext = isIos ? 'wav' : 'm4a';
     final encoder = isIos ? AudioEncoder.wav : AudioEncoder.aacLc;
     final path =
-        '${tempDir.path}/caliana_voice_${DateTime.now().millisecondsSinceEpoch}.$ext';
+        '${tempDir.path}/gobly_voice_${DateTime.now().millisecondsSinceEpoch}.$ext';
 
-    // 128 kbps / 24 kHz mono. Whisper's quality drops noticeably below
-    // 24 kHz; the 64 kbps / 16 kHz config we shipped first was fine for
-    // an MVP but mangled brand names and accents. 128/24 is still tiny
-    // (~1 MB per minute) but transcribes meaningfully cleaner.
     await _recorder.start(
       RecordConfig(
         encoder: encoder,
-        bitRate: 128000,
-        sampleRate: 24000,
+        bitRate: 64000,
+        sampleRate: 16000,
         numChannels: 1,
       ),
       path: path,

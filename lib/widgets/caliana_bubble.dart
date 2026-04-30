@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -16,20 +14,14 @@ class CalianaBubble extends StatelessWidget {
   final ChatMessage message;
   final ValueChanged<String>? onChipTap;
   final VoidCallback? onLongPress;
-  final VoidCallback? onTap;
   final VoidCallback? onPlayVoice;
-  final ValueChanged<MealIdea>? onCommitMeal;
-  final ValueChanged<MealIdea>? onSaveMeal;
 
   const CalianaBubble({
     super.key,
     required this.message,
     this.onChipTap,
     this.onLongPress,
-    this.onTap,
     this.onPlayVoice,
-    this.onCommitMeal,
-    this.onSaveMeal,
   });
 
   @override
@@ -40,7 +32,7 @@ class CalianaBubble extends StatelessWidget {
     if (message.type == 'mealSuggest' && message.mealIdeas.isNotEmpty) {
       return _mealSuggestStack();
     }
-    return message.isUser ? _userBubble(context) : _calianaBubble();
+    return message.isUser ? _userBubble() : _calianaBubble();
   }
 
   Widget _mealSuggestStack() {
@@ -71,15 +63,7 @@ class CalianaBubble extends StatelessWidget {
                 ...message.mealIdeas
                     .map((idea) => Padding(
                           padding: const EdgeInsets.only(bottom: 8),
-                          child: _RecipeCard(
-                            idea: idea,
-                            onCommit: onCommitMeal == null
-                                ? null
-                                : () => onCommitMeal!(idea),
-                            onSave: onSaveMeal == null
-                                ? null
-                                : () => onSaveMeal!(idea),
-                          ),
+                          child: _RecipeCard(idea: idea),
                         ))
                     ,
               ],
@@ -91,22 +75,20 @@ class CalianaBubble extends StatelessWidget {
     );
   }
 
-  /// Caliana's reply renders as plain black text on the chat surface
-  /// (no card, no border) — ChatGPT/Claude style — so her voice reads
-  /// like the agent talking to you, not yet another labelled bubble.
-  /// Action chips sit just under the text; user messages stay as dark
-  /// cards so the side-of-conversation is still obvious.
+  /// Caliana's text is rendered loose — no card, no border. Just her
+  /// speaking-avatar circle on the left and the line itself, with any
+  /// inline action chips and her voice button below. Keeps the chat
+  /// feeling like a person talking, not a UI card stack.
   Widget _calianaBubble() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 8, 0, 8),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _SpeakingAvatar(key: ValueKey('avatar_${message.id}')),
           const SizedBox(width: 10),
-          Expanded(
+          Flexible(
             child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
               onLongPress: () {
                 HapticFeedback.mediumImpact();
                 onLongPress?.call();
@@ -116,20 +98,20 @@ class CalianaBubble extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.only(top: 2),
+                    padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       message.text,
                       style: const TextStyle(
                         fontSize: 15,
-                        height: 1.45,
+                        height: 1.4,
                         color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                         letterSpacing: -0.1,
                       ),
                     ),
                   ),
                   if (message.actionChips.isNotEmpty) ...[
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
@@ -152,73 +134,68 @@ class CalianaBubble extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 36),
         ],
       ),
     );
   }
 
-  Widget _userBubble(BuildContext context) {
+  Widget _userBubble() {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          const Spacer(flex: 1),
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              // Cap user bubble at ~78% of screen so long rambles don't
-              // span full width and read as centred. The Spacer pushes
-              // anything shorter against the right edge.
-              maxWidth: MediaQuery.of(context).size.width * 0.78,
-            ),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(14, 9, 14, 9),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0F172A),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(4),
-                  bottomLeft: Radius.circular(16),
-                  bottomRight: Radius.circular(16),
+          const SizedBox(width: 56),
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(14, 9, 14, 9),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(4),
+                    bottomLeft: Radius.circular(16),
+                    bottomRight: Radius.circular(16),
+                  ),
                 ),
-              ),
-              child: Text(
-                message.text,
-                style: const TextStyle(
-                  fontSize: 14.5,
-                  height: 1.35,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
+                child: Text(
+                  message.text,
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    height: 1.35,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 4),
         ],
       ),
     );
   }
 
-  /// Clean food log card. Photo as hero (160pt) when present, then a
-  /// tight info strip: name + big kcal on one line, three colour-dot
-  /// macros on the next, "Tap to edit" at the bottom. No tile boxes.
   Widget _foodLogCard() {
     final entry = message.foodEntry!;
-    final hasPhoto =
-        entry.photoPath != null && entry.photoPath!.isNotEmpty;
-
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Dismissible(
         key: ValueKey(entry.id),
         direction: DismissDirection.endToStart,
         background: Container(
-          margin: const EdgeInsets.only(left: 16),
+          margin: const EdgeInsets.only(left: 56),
           padding: const EdgeInsets.symmetric(horizontal: 22),
           alignment: Alignment.centerRight,
           decoration: BoxDecoration(
             color: AppColors.accent.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(16),
+              topRight: Radius.circular(4),
+              bottomLeft: Radius.circular(16),
+              bottomRight: Radius.circular(16),
+            ),
           ),
           child: const Icon(
             Icons.delete_outline_rounded,
@@ -232,98 +209,87 @@ class CalianaBubble extends StatelessWidget {
         },
         child: Row(
           children: [
-            const SizedBox(width: 16),
+            const SizedBox(width: 56),
             Expanded(
-              child: GestureDetector(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  onTap?.call();
-                },
+              child: Align(
+                alignment: Alignment.centerRight,
                 child: Container(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(22),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(4),
+                      bottomLeft: Radius.circular(16),
+                      bottomRight: Radius.circular(16),
+                    ),
+                    border:
+                        Border.all(color: AppColors.surfaceBorder, width: 1),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.07),
-                        blurRadius: 22,
-                        offset: const Offset(0, 8),
-                      ),
-                      BoxShadow(
                         color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
-                  clipBehavior: Clip.antiAlias,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (hasPhoto) _photoHero(entry.photoPath!),
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(
-                            18, hasPhoto ? 14 : 18, 18, 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Name + big calorie pair on one line.
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    entry.name,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w900,
-                                      color: AppColors.textPrimary,
-                                      letterSpacing: -0.4,
-                                      height: 1.2,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                _kcalBlock(entry.calories),
-                              ],
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _methodIcon(entry.inputMethod),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              entry.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
                             ),
-                            const SizedBox(height: 12),
-                            // Single inline macro row with coloured dots
-                            // — clean, premium, no tile boxes.
-                            Wrap(
-                              spacing: 14,
-                              runSpacing: 6,
-                              children: [
-                                _macroDot(
-                                    'P', entry.proteinGrams,
-                                    AppColors.macroProtein),
-                                _macroDot(
-                                    'C', entry.carbsGrams,
-                                    AppColors.macroCarbs),
-                                _macroDot(
-                                    'F', entry.fatGrams,
-                                    AppColors.macroFat),
-                              ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${entry.calories}',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.primary,
+                              letterSpacing: -0.5,
+                              fontFeatures: [FontFeature.tabularFigures()],
                             ),
-                            // Footer strip: method tag + tap hint /
-                            // confidence on the right.
-                            const SizedBox(height: 14),
-                            Row(
-                              children: [
-                                _methodTag(entry.inputMethod),
-                                const Spacer(),
-                                if (_confidenceLabel(entry.confidence) != null)
-                                  _confidenceChip(entry.confidence)
-                                else
-                                  _editHint(),
-                              ],
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            'kcal',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: AppColors.textHint,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 5,
+                        children: [
+                          _macroPill('P', entry.proteinGrams,
+                              AppColors.macroProtein),
+                          _macroPill('C', entry.carbsGrams,
+                              AppColors.macroCarbs),
+                          _macroPill('F', entry.fatGrams, AppColors.macroFat),
+                        ],
                       ),
                     ],
                   ),
@@ -336,198 +302,34 @@ class CalianaBubble extends StatelessWidget {
     );
   }
 
-  Widget _kcalBlock(int kcal) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: TextBaseline.alphabetic,
-      children: [
-        Text(
-          '$kcal',
-          style: const TextStyle(
-            fontSize: 32,
-            fontWeight: FontWeight.w900,
-            color: AppColors.primary,
-            letterSpacing: -1,
-            height: 1,
-            fontFeatures: [FontFeature.tabularFigures()],
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          'kcal',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            color: AppColors.primary.withValues(alpha: 0.55),
-            letterSpacing: -0.1,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _macroDot(String label, int grams, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 6),
-        RichText(
-          text: TextSpan(
-            children: [
-              TextSpan(
-                text: '$grams',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.textPrimary,
-                  letterSpacing: -0.2,
-                  fontFeatures: [FontFeature.tabularFigures()],
-                ),
-              ),
-              const TextSpan(text: ' '),
-              TextSpan(
-                text: 'g $label',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textHint,
-                  letterSpacing: 0.4,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _editHint() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.edit_rounded,
-          size: 11,
-          color: AppColors.textHint,
-        ),
-        const SizedBox(width: 4),
-        Text(
-          'Tap to edit',
-          style: TextStyle(
-            fontSize: 10.5,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textHint,
-            letterSpacing: 0.2,
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Hero photo at the top of the food card when the entry was logged
-  /// from a snap or library image. Keeps the receipt feeling: "this is
-  /// what I ate, here are the numbers". Falls back to a placeholder if
-  /// the local file is gone.
-  Widget _photoHero(String path) {
-    return SizedBox(
-      height: 160,
-      width: double.infinity,
-      child: Image.file(
-        File(path),
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Container(
-          color: AppColors.primary.withValues(alpha: 0.06),
-          child: const Center(
-            child: Icon(
-              Icons.image_not_supported_rounded,
-              size: 32,
-              color: AppColors.textHint,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _methodTag(String method) {
-    final (icon, label) = switch (method) {
-      'photo' => (Icons.camera_alt_rounded, 'Photo'),
-      'voice' => (Icons.mic_rounded, 'Voice'),
-      'fridge' => (Icons.kitchen_rounded, 'Fridge'),
-      'barcode' => (Icons.qr_code_rounded, 'Barcode'),
-      _ => (Icons.edit_note_rounded, 'Text'),
-    };
+  Widget _macroPill(String label, int grams, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(50),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 11, color: AppColors.primary),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 9.5,
-              fontWeight: FontWeight.w800,
-              color: AppColors.primary,
-              letterSpacing: 0.4,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-
-  String? _confidenceLabel(String c) {
-    switch (c) {
-      case 'low':
-        return 'Rough est. — tap to fix';
-      case 'high':
-        return null; // No badge when we're confident; less visual noise.
-      default:
-        return null;
-    }
-  }
-
-  Widget _confidenceChip(String confidence) {
-    final label = _confidenceLabel(confidence);
-    if (label == null) return const SizedBox.shrink();
-    final color = AppColors.warning;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.35), width: 0.8),
+        borderRadius: BorderRadius.circular(7),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.info_outline_rounded, size: 10, color: color),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w800,
-              color: color,
-              letterSpacing: 0.1,
-            ),
-          ),
-        ],
+      child: Text(
+        '$label ${grams}g',
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          color: color,
+          letterSpacing: 0.2,
+        ),
       ),
     );
+  }
+
+  Widget _methodIcon(String method) {
+    final icon = switch (method) {
+      'photo' => Icons.camera_alt_rounded,
+      'voice' => Icons.mic_rounded,
+      'fridge' => Icons.kitchen_rounded,
+      'barcode' => Icons.qr_code_rounded,
+      _ => Icons.text_fields_rounded,
+    };
+    return Icon(icon, size: 11, color: AppColors.textHint);
   }
 
   Widget _voiceButton() {
@@ -634,16 +436,12 @@ class _SpeakingAvatarState extends State<_SpeakingAvatar>
   }
 }
 
-/// Recipe card shown inline in chat. When Caliana scrapes a real recipe
-/// (image + rating + cook time from JSON-LD), the card leads with a
-/// 180pt hero photo and a kcal pill in the corner — same shape Gobly
-/// shipped. When she's only got a GPT-generated idea, it falls back to
-/// a slimmer text card.
+/// Recipe card shown inline in the chat thread when Caliana suggests a meal.
+/// Tap to expand ingredients + steps; tap the link chip to open the original
+/// recipe (Serper top hit).
 class _RecipeCard extends StatefulWidget {
   final MealIdea idea;
-  final VoidCallback? onCommit;
-  final VoidCallback? onSave;
-  const _RecipeCard({required this.idea, this.onCommit, this.onSave});
+  const _RecipeCard({required this.idea});
 
   @override
   State<_RecipeCard> createState() => _RecipeCardState();
@@ -651,21 +449,6 @@ class _RecipeCard extends StatefulWidget {
 
 class _RecipeCardState extends State<_RecipeCard> {
   bool _expanded = false;
-
-  String _ratingText(MealIdea idea) {
-    if (idea.ratingValue == null) return '';
-    final v = idea.ratingValue!.toStringAsFixed(1);
-    if (idea.ratingCount != null && idea.ratingCount! > 0) {
-      final c = _shortCount(idea.ratingCount!);
-      return '$v ($c)';
-    }
-    return v;
-  }
-
-  String _shortCount(int n) {
-    if (n >= 1000) return '${(n / 1000).toStringAsFixed(n >= 10000 ? 0 : 1)}k';
-    return '$n';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -677,539 +460,214 @@ class _RecipeCardState extends State<_RecipeCard> {
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.surfaceBorder, width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 18,
-              offset: const Offset(0, 6),
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
-        clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (idea.hasRichRecipe) _heroImage(idea),
-            Padding(
-              padding: idea.hasRichRecipe
-                  ? const EdgeInsets.fromLTRB(14, 12, 14, 12)
-                  : const EdgeInsets.fromLTRB(14, 12, 14, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _titleRow(idea),
-                  const SizedBox(height: 4),
-                  _metaRow(idea),
-                  if (_expanded) ...[
-                    const SizedBox(height: 12),
-                    if (idea.ingredients.isNotEmpty) ...[
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          _sectionHeader('Ingredients · 1 portion'),
-                          const Spacer(),
-                          if (idea.originalServings != null &&
-                              idea.originalServings! > 1)
-                            Text(
-                              'scaled from ${idea.originalServings}',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textHint,
-                                letterSpacing: 0.2,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.restaurant_rounded,
+                    color: AppColors.primary,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        idea.name,
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${idea.calories} kcal · ${idea.protein}P / ${idea.carbs}C / ${idea.fat}F',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  _expanded
+                      ? Icons.expand_less_rounded
+                      : Icons.expand_more_rounded,
+                  color: AppColors.textHint,
+                  size: 22,
+                ),
+              ],
+            ),
+            if (_expanded) ...[
+              const SizedBox(height: 10),
+              if (idea.ingredients.isNotEmpty) ...[
+                const Text(
+                  'Ingredients',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                ...idea.ingredients.map(
+                  (line) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 1.5),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(top: 5, right: 8),
+                          child: SizedBox(
+                            width: 4,
+                            height: 4,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                shape: BoxShape.circle,
                               ),
                             ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      ...idea.ingredients.map(_bulletLine),
-                      const SizedBox(height: 10),
-                    ],
-                    if (idea.steps.isNotEmpty) ...[
-                      _sectionHeader('Steps'),
-                      const SizedBox(height: 4),
-                      ...List.generate(idea.steps.length, (i) =>
-                          _numberedLine(i + 1, idea.steps[i])),
-                      const SizedBox(height: 10),
-                    ],
-                    if (idea.link != null && idea.link!.isNotEmpty)
-                      _openRecipeButton(idea),
-                  ],
-                  // Action row — "I ate it" lives next to "Save" so
-                  // the user can either commit the calories straight
-                  // to today's ring OR keep the recipe for later.
-                  if (widget.onCommit != null || widget.onSave != null) ...[
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        if (widget.onCommit != null)
-                          Expanded(child: _commitButton()),
-                        if (widget.onCommit != null && widget.onSave != null)
-                          const SizedBox(width: 8),
-                        if (widget.onSave != null)
-                          Expanded(child: _saveButton()),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            line,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              height: 1.35,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _heroImage(MealIdea idea) {
-    return Stack(
-      children: [
-        SizedBox(
-          height: 180,
-          width: double.infinity,
-          child: Image.network(
-            idea.imageUrl!,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _imageFallback(),
-            loadingBuilder: (context, child, progress) {
-              if (progress == null) return child;
-              return Container(
-                color: const Color(0xFFF1F3F8),
-                child: const Center(
-                  child: SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              if (idea.steps.isNotEmpty) ...[
+                const Text(
+                  'Steps',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                ...List.generate(idea.steps.length, (i) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 18,
+                          child: Text(
+                            '${i + 1}.',
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            idea.steps[i],
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              height: 1.4,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+                const SizedBox(height: 8),
+              ],
+              if (idea.link != null && idea.link!.isNotEmpty) ...[
+                GestureDetector(
+                  onTap: () async {
+                    HapticFeedback.lightImpact();
+                    final uri = Uri.tryParse(idea.link!);
+                    if (uri != null) {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.30),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.open_in_new_rounded,
+                          size: 13,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            idea.source ?? 'Open recipe',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primary,
+                              letterSpacing: -0.1,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              );
-            },
-          ),
-        ),
-        // Top-bottom gradient so the kcal pill always reads on busy
-        // food photography.
-        Positioned.fill(
-          child: IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.0),
-                    Colors.black.withValues(alpha: 0.32),
-                  ],
-                  stops: const [0.55, 1.0],
-                ),
-              ),
-            ),
-          ),
-        ),
-        if (idea.calories > 0)
-          Positioned(
-            top: 12,
-            right: 12,
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.55),
-                borderRadius: BorderRadius.circular(50),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${idea.calories}',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      letterSpacing: -0.2,
-                      fontFeatures: [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                  const SizedBox(width: 3),
-                  const Text(
-                    'kcal',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Colors.white70,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _imageFallback() {
-    return Container(
-      color: AppColors.primary.withValues(alpha: 0.08),
-      child: const Center(
-        child: Icon(
-          Icons.restaurant_rounded,
-          color: AppColors.primary,
-          size: 36,
-        ),
-      ),
-    );
-  }
-
-  Widget _titleRow(MealIdea idea) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Text(
-            idea.name,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-              color: AppColors.textPrimary,
-              letterSpacing: -0.3,
-              height: 1.25,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Icon(
-          _expanded
-              ? Icons.expand_less_rounded
-              : Icons.expand_more_rounded,
-          color: AppColors.textHint,
-          size: 22,
-        ),
-      ],
-    );
-  }
-
-  Widget _metaRow(MealIdea idea) {
-    final parts = <Widget>[];
-    final ratingText = _ratingText(idea);
-
-    if (ratingText.isNotEmpty) {
-      parts.add(Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.star_rounded,
-              size: 14, color: Color(0xFFFFB400)),
-          const SizedBox(width: 2),
-          Text(
-            ratingText,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-              letterSpacing: -0.1,
-            ),
-          ),
-        ],
-      ));
-    }
-    if (idea.totalTimeMin != null && idea.totalTimeMin! > 0) {
-      parts.add(Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.schedule_rounded,
-              size: 13, color: AppColors.textSecondary),
-          const SizedBox(width: 3),
-          Text(
-            _formatTime(idea.totalTimeMin!),
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
-      ));
-    }
-    if (idea.calories > 0 && !idea.hasRichRecipe) {
-      // Slim card path: surface kcal in the meta row instead of the pill.
-      parts.add(Text(
-        '${idea.calories} kcal',
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          color: AppColors.primary,
-        ),
-      ));
-    }
-    if (idea.source != null && idea.source!.isNotEmpty) {
-      parts.add(Flexible(
-        child: Text(
-          idea.source!,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textHint,
-          ),
-        ),
-      ));
-    }
-
-    if (parts.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final spaced = <Widget>[];
-    for (var i = 0; i < parts.length; i++) {
-      if (i > 0) {
-        spaced.add(_dot());
-      }
-      spaced.add(parts[i]);
-    }
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: spaced,
-    );
-  }
-
-  Widget _dot() => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6),
-        child: Container(
-          width: 3,
-          height: 3,
-          decoration: BoxDecoration(
-            color: AppColors.textHint,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-      );
-
-  String _formatTime(int min) {
-    if (min < 60) return '$min min';
-    final h = min ~/ 60;
-    final rem = min % 60;
-    if (rem == 0) return '${h}h';
-    return '${h}h ${rem}m';
-  }
-
-  Widget _sectionHeader(String label) {
-    return Text(
-      label.toUpperCase(),
-      style: TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w900,
-        color: AppColors.primary,
-        letterSpacing: 1.0,
-      ),
-    );
-  }
-
-  Widget _bulletLine(String line) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 6, right: 9),
-            child: SizedBox(
-              width: 5,
-              height: 5,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              line,
-              style: const TextStyle(
-                fontSize: 13,
-                height: 1.4,
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _numberedLine(int n, String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 22,
-            child: Text(
-              '$n.',
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                color: AppColors.primary,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(
-                fontSize: 13,
-                height: 1.45,
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _commitButton() {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.mediumImpact();
-        widget.onCommit?.call();
-      },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 11),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF5A8AFF), Color(0xFF2F6BFF)],
-          ),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.30),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
-            Icon(
-              Icons.check_circle_outline_rounded,
-              size: 16,
-              color: Colors.white,
-            ),
-            SizedBox(width: 6),
-            Text(
-              'I ate it',
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
-                letterSpacing: -0.2,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _saveButton() {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        widget.onSave?.call();
-      },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppColors.primary.withValues(alpha: 0.30),
-            width: 1.2,
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
-            Icon(
-              Icons.bookmark_border_rounded,
-              size: 16,
-              color: AppColors.primary,
-            ),
-            SizedBox(width: 6),
-            Text(
-              'Save',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                color: AppColors.primary,
-                letterSpacing: -0.1,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _openRecipeButton(MealIdea idea) {
-    return GestureDetector(
-      onTap: () async {
-        HapticFeedback.lightImpact();
-        final uri = Uri.tryParse(idea.link!);
-        if (uri != null) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        }
-      },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: AppColors.primary,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.open_in_new_rounded,
-              size: 15,
-              color: Colors.white,
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                idea.source != null
-                    ? 'Open on ${idea.source}'
-                    : 'Open full recipe',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                  letterSpacing: -0.2,
-                ),
-              ),
-            ),
+              ],
+            ],
           ],
         ),
       ),

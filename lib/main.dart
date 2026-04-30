@@ -1,18 +1,17 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'theme/app_theme.dart';
-import 'screens/main_tabs.dart';
+import 'screens/today_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/consent_screen.dart';
 import 'services/user_profile_service.dart';
 import 'services/app_settings_service.dart';
 import 'services/usage_service.dart';
 import 'services/day_log_service.dart';
 import 'services/saved_meals_service.dart';
-import 'services/plan_service.dart';
-import 'services/recovery_autopilot.dart';
-import 'services/revenuecat_service.dart';
+import 'services/consent_service.dart';
+import 'services/review_prompt_service.dart';
 import 'services/analytics_service.dart';
 
 void main() async {
@@ -25,6 +24,15 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
+    bool firebaseReady = false;
+    try {
+      await Firebase.initializeApp();
+      firebaseReady = true;
+      debugPrint('✅ Firebase initialized');
+    } catch (e) {
+      debugPrint('⚠️ Firebase init failed (analytics disabled): $e');
+    }
+
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -45,21 +53,17 @@ void main() async {
       UsageService.instance.load(),
       DayLogService.instance.load(),
       SavedMealsService.instance.load(),
-      PlanService.instance.load(),
+      ConsentService.instance.load(),
+      ReviewPromptService.instance.load(),
       OnboardingScreen.hasBeenSeen().then((v) => onboardingSeen = v),
     ]);
     debugPrint('✅ Caliana services loaded');
 
-    // Watch the day log — when it crosses an overage threshold, this
-    // rebuilds tomorrow's plan in recovery mode automatically. The
-    // user logs reality; she fixes the future.
-    RecoveryAutopilot.instance.start();
-
-    // Configure RevenueCat in the background — fire-and-forget so a
-    // missing/bad API key never blocks the app from booting.
-    unawaited(RevenueCatService.instance.bootstrap());
-
-    AnalyticsService.instance.logAppOpen();
+    if (firebaseReady) {
+      try {
+        AnalyticsService.instance.logAppOpen();
+      } catch (_) {}
+    }
 
     // Production: replace red error widgets with empty space.
     ErrorWidget.builder = (FlutterErrorDetails details) {
@@ -67,7 +71,10 @@ void main() async {
       return const SizedBox.shrink();
     };
 
-    runApp(CalianaApp(showOnboarding: !onboardingSeen));
+    runApp(CalianaApp(
+      showOnboarding: !onboardingSeen,
+      firebaseReady: firebaseReady,
+    ));
   } catch (e, stack) {
     debugPrint('❌ CRITICAL INIT CRASH: $e\n$stack');
     runApp(_FailsafeApp(error: e, stack: stack));
@@ -76,24 +83,36 @@ void main() async {
 
 class CalianaApp extends StatelessWidget {
   final bool showOnboarding;
+  final bool firebaseReady;
 
   const CalianaApp({
     super.key,
     required this.showOnboarding,
+    required this.firebaseReady,
   });
 
   @override
   Widget build(BuildContext context) {
+    final Widget home;
+    if (showOnboarding) {
+      home = const _OnboardingGate();
+    } else if (!ConsentService.instance.granted) {
+      home = const _ConsentGate();
+    } else {
+      home = const TodayScreen();
+    }
     return MaterialApp(
       title: 'Caliana',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,
-      home: showOnboarding ? const _OnboardingGate() : const MainTabs(),
+      navigatorObservers:
+          firebaseReady ? [AnalyticsService.instance.observer] : const [],
+      home: home,
     );
   }
 }
 
-/// Shows onboarding once, then fades into the home screen.
+/// Shows onboarding once, then routes through consent if needed.
 class _OnboardingGate extends StatelessWidget {
   const _OnboardingGate();
 
@@ -101,9 +120,12 @@ class _OnboardingGate extends StatelessWidget {
   Widget build(BuildContext context) {
     return OnboardingScreen(
       onComplete: () {
+        final next = ConsentService.instance.granted
+            ? const TodayScreen()
+            : const _ConsentGate();
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(
-            pageBuilder: (_, __, ___) => const MainTabs(),
+            pageBuilder: (_, __, ___) => next,
             transitionsBuilder: (_, animation, __, child) {
               return FadeTransition(opacity: animation, child: child);
             },
@@ -111,6 +133,33 @@ class _OnboardingGate extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Apple 5.1.1(i) / 5.1.2(i) gate: shown after onboarding if the user has
+/// not yet granted permission to send data to OpenAI / ElevenLabs. The
+/// app cannot make AI-bound calls until consent is granted (or it falls
+/// back to local-only behaviour from CalianaService).
+class _ConsentGate extends StatelessWidget {
+  const _ConsentGate();
+
+  @override
+  Widget build(BuildContext context) {
+    void goHome() {
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => const TodayScreen(),
+          transitionsBuilder: (_, a, __, child) =>
+              FadeTransition(opacity: a, child: child),
+          transitionDuration: const Duration(milliseconds: 400),
+        ),
+      );
+    }
+
+    return ConsentScreen(
+      onAccepted: goHome,
+      onDeclined: goHome,
     );
   }
 }

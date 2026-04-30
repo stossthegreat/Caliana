@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
-import 'caliana_avatar.dart';
 
 /// Bottom input dock — neutral surface so Caliana stays the hero.
 ///
@@ -96,7 +95,7 @@ class _InputDockState extends State<InputDock>
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+          padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -116,33 +115,24 @@ class _InputDockState extends State<InputDock>
                       )
                     : const SizedBox.shrink(),
               ),
-              // Action row — fridge stays at the left edge, camera at
-              // the right edge. The voice pill sits in the middle but
-              // only takes ~half the row width — flanked by Spacers
-              // instead of Expanded so it never eats the whole bar.
-              // Slight upward offset on the pill so it reads as
-              // elevated above the side icons ("press me").
-              SizedBox(
-                height: 60,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    _sideAction(
-                      icon: Icons.kitchen_rounded,
-                      onTap: widget.onFridge,
-                    ),
-                    const Spacer(),
-                    Transform.translate(
-                      offset: const Offset(0, -6),
-                      child: _voicePill(),
-                    ),
-                    const Spacer(),
-                    _sideAction(
-                      icon: Icons.camera_alt_rounded,
-                      onTap: widget.onCamera,
-                    ),
-                  ],
-                ),
+              // Action row — fridge | voice pill | snap-food.
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  _sideAction(
+                    icon: Icons.kitchen_rounded,
+                    label: 'Fridge',
+                    onTap: widget.onFridge,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: _voicePill()),
+                  const SizedBox(width: 10),
+                  _sideAction(
+                    icon: Icons.camera_alt_rounded,
+                    label: 'Snap',
+                    onTap: widget.onCamera,
+                  ),
+                ],
               ),
             ],
           ),
@@ -233,10 +223,9 @@ class _InputDockState extends State<InputDock>
     );
   }
 
-  /// The voice pill — centre hero. Brand-blue, rounded-rectangle (not a
-  /// circle), pulsing glow when idle, scales + intense glow when
-  /// recording. Mic icon centred. No text. Smaller than the original
-  /// 64pt monster so the dock leaves room for the chat above.
+  /// The voice pill — dominant centerpiece. White, pill-shaped, with a
+  /// chat-bubble + mic icon. Tap to start/stop a voice turn; long-press to
+  /// hold-to-talk. Morphs into a Send button when the user has typed.
   Widget _voicePill() {
     final showSend = _typing && _hasText;
     return GestureDetector(
@@ -266,50 +255,77 @@ class _InputDockState extends State<InputDock>
         animation: _pulseCtrl,
         builder: (context, _) {
           final t = _pulseCtrl.value;
-          // Stronger idle pulse so the FAB always reads "press me".
-          final scale = widget.isRecording
-              ? 1.07
-              : 1.0 + (t * 0.045);
-          final glow =
-              widget.isRecording ? 0.65 : 0.32 + (t * 0.32);
+          final scale = widget.isRecording ? 1.04 : 1.0 + (t * 0.012);
+          final glow = widget.isRecording
+              ? 0.55
+              : 0.22 + (t * 0.18);
           return Transform.scale(
             scale: scale,
             child: Container(
-              height: 56,
-              width: 172,
+              height: 64,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF5A8AFF),
-                    Color(0xFF2F6BFF),
-                    Color(0xFF1F4FE0),
-                  ],
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(40),
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.22),
+                  width: 1.2,
                 ),
-                borderRadius: BorderRadius.circular(30),
                 boxShadow: [
                   BoxShadow(
                     color: AppColors.primary.withValues(alpha: glow),
-                    blurRadius: 28,
-                    spreadRadius: 2.5,
-                    offset: const Offset(0, 8),
+                    blurRadius: 26,
+                    spreadRadius: 1.5,
+                    offset: const Offset(0, 6),
                   ),
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 6,
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
                 ],
               ),
-              child: Center(
-                child: showSend
-                    ? const Icon(Icons.arrow_upward_rounded,
-                        color: Colors.white, size: 28)
-                    : widget.isRecording
-                        ? const Icon(Icons.stop_rounded,
-                            color: Colors.white, size: 28)
-                        : const _PressMeFace(),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Chat-bubble badge with the active icon inside.
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(14),
+                        topRight: Radius.circular(14),
+                        bottomRight: Radius.circular(14),
+                        bottomLeft: Radius.circular(4),
+                      ),
+                    ),
+                    child: Icon(
+                      showSend
+                          ? Icons.arrow_upward_rounded
+                          : (widget.isRecording
+                              ? Icons.stop_rounded
+                              : Icons.mic_rounded),
+                      color: Colors.white,
+                      size: 21,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    showSend
+                        ? 'Send'
+                        : widget.isRecording
+                            ? 'Listening…'
+                            : 'Talk to Caliana',
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primary,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                ],
               ),
             ),
           );
@@ -318,8 +334,10 @@ class _InputDockState extends State<InputDock>
     );
   }
 
+  /// Side action — circular blue button with a small label underneath.
   Widget _sideAction({
     required IconData icon,
+    required String label,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -327,78 +345,41 @@ class _InputDockState extends State<InputDock>
         HapticFeedback.lightImpact();
         onTap();
       },
-      child: Container(
-        width: 46,
-        height: 46,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF5A8AFF), Color(0xFF2F6BFF)],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.25),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Icon(icon, color: Colors.white, size: 20),
-      ),
-    );
-  }
-}
-
-/// Caliana's face inside the mic FAB. Larger than the chat avatar
-/// (the FAB is the hero of the dock), no extra ring (the pill itself
-/// frames her), with a tiny mic glyph in the bottom-right so the
-/// affordance is unmistakable: "tap her, talk to her".
-class _PressMeFace extends StatelessWidget {
-  const _PressMeFace();
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 44,
-      height: 44,
-      child: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          ClipOval(
-            child: Image.asset(
-              'assets/caliana.png',
-              fit: BoxFit.cover,
-              alignment: const Alignment(0, -0.55),
-              width: 44,
-              height: 44,
-              filterQuality: FilterQuality.high,
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFFFFFFF), Color(0xFFEFF4FF)],
+              ),
+              border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.18),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.10),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
+            child: Icon(icon, color: AppColors.primary, size: 21),
           ),
-          Positioned(
-            right: -2,
-            bottom: -2,
-            child: Container(
-              width: 18,
-              height: 18,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.15),
-                    blurRadius: 4,
-                    offset: const Offset(0, 1),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.mic_rounded,
-                size: 11,
-                color: AppColors.primary,
-              ),
+          const SizedBox(height: 3),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textSecondary,
+              letterSpacing: -0.1,
             ),
           ),
         ],

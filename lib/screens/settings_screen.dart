@@ -7,13 +7,11 @@ import '../services/user_profile_service.dart';
 import '../services/app_settings_service.dart';
 import '../services/usage_service.dart';
 import '../services/day_log_service.dart';
+import '../services/saved_meals_service.dart';
+import '../services/consent_service.dart';
+import '../screens/onboarding_screen.dart';
+import '../screens/consent_screen.dart';
 import '../widgets/aurora_background.dart';
-import '../widgets/character_card.dart';
-
-const _kPrivacyUrl = 'https://stossthegreat.github.io/Caliana/privacy.html';
-const _kTermsUrl = 'https://stossthegreat.github.io/Caliana/terms.html';
-const _kDeleteUrl = 'https://stossthegreat.github.io/Caliana/delete-account.html';
-const _kSupportEmail = 'info@m2mb.co.uk';
 
 /// Caliana's settings — slim, single-page, navy/coral. Tone slider lives here.
 /// All goal data is editable; updating instantly recomputes daily/weekly targets.
@@ -40,7 +38,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _nameController.dispose();
     super.dispose();
   }
-
 
   Future<void> _save() async {
     HapticFeedback.lightImpact();
@@ -98,50 +95,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         _targetBlock(),
                       ),
                       const SizedBox(height: 22),
-                      _sectionLabel('Legal & support'),
+                      _sectionLabel('Privacy & data'),
                       const SizedBox(height: 8),
-                      _linkRow(
-                        Icons.privacy_tip_rounded,
-                        'Privacy Policy',
-                        AppColors.textSecondary,
-                        () => _openUrl(_kPrivacyUrl),
-                      ),
+                      _consentRow(),
                       _linkRow(
                         Icons.policy_rounded,
                         'Terms of Service',
                         AppColors.textSecondary,
-                        () => _openUrl(_kTermsUrl),
+                        () => _openLegalUrl('https://caliana.app/terms'),
                       ),
                       _linkRow(
-                        Icons.person_remove_rounded,
-                        'Delete account',
+                        Icons.privacy_tip_rounded,
+                        'Privacy Policy',
                         AppColors.textSecondary,
-                        () => _openUrl(_kDeleteUrl),
-                        sub: 'How to remove your data',
-                      ),
-                      _linkRow(
-                        Icons.mail_outline_rounded,
-                        'Contact support',
-                        AppColors.textSecondary,
-                        _emailSupport,
-                        sub: _kSupportEmail,
+                        () => _openLegalUrl('https://caliana.app/privacy'),
                       ),
                       _linkRow(
                         Icons.info_outline_rounded,
                         'About Caliana',
                         AppColors.textSecondary,
-                        () {},
+                        () => _showAbout(),
                         trailing: 'v0.1.0',
                       ),
                       const SizedBox(height: 22),
                       _sectionLabel('Danger zone'),
                       const SizedBox(height: 8),
                       _linkRow(
-                        Icons.delete_sweep_rounded,
-                        'Clear all data',
-                        AppColors.warning,
-                        _confirmClearData,
-                        sub: 'Wipes logs, chat history, profile',
+                        Icons.person_off_rounded,
+                        'Delete account',
+                        AppColors.error,
+                        _confirmDeleteAccount,
+                        sub: 'Removes profile, logs, recipes, chat history',
                       ),
                     ],
                   ),
@@ -244,35 +228,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _section(String label, IconData icon, Widget child) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-      decoration: GlassDecoration.card(opacity: 0.07),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      decoration: GlassDecoration.card(opacity: 0.05),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Icon(icon, color: AppColors.accent, size: 16),
-              ),
-              const SizedBox(width: 10),
+              Icon(icon, color: AppColors.accent, size: 18),
+              const SizedBox(width: 8),
               Text(
                 label,
                 style: const TextStyle(
-                  fontSize: 15.5,
+                  fontSize: 14,
                   fontWeight: FontWeight.w800,
                   color: AppColors.textPrimary,
-                  letterSpacing: -0.3,
+                  letterSpacing: -0.2,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           child,
         ],
       ),
@@ -280,20 +256,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _toneRow() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Row(
       children: [
-        for (final v in const ['polite', 'cheeky', 'savage']) ...[
-          CharacterCard(
-            value: v,
-            selected: _draft.tone == v,
-            onTap: () {
-              setState(() => _draft = _draft.copyWith(tone: v));
-            },
-          ),
-          if (v != 'savage') const SizedBox(height: 10),
-        ],
+        Expanded(child: _toneBtn('polite', 'Polite', '🤝')),
+        const SizedBox(width: 8),
+        Expanded(child: _toneBtn('cheeky', 'Cheeky', '😏')),
+        const SizedBox(width: 8),
+        Expanded(child: _toneBtn('savage', 'Savage', '🔥')),
       ],
+    );
+  }
+
+  Widget _toneBtn(String value, String label, String emoji) {
+    final selected = _draft.tone == value;
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _draft = _draft.copyWith(tone: value));
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 64,
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.accent.withValues(alpha: 0.18)
+              : Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected
+                ? AppColors.accent.withValues(alpha: 0.5)
+                : Colors.white.withValues(alpha: 0.10),
+            width: selected ? 1.4 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 18)),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                color: selected
+                    ? AppColors.textPrimary
+                    : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -669,14 +682,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _sectionLabel(String text) {
     return Padding(
-      padding: const EdgeInsets.only(left: 4),
+      padding: const EdgeInsets.only(left: 8),
       child: Text(
         text.toUpperCase(),
         style: TextStyle(
-          fontSize: 12,
+          fontSize: 11,
           color: AppColors.textHint,
           fontWeight: FontWeight.w800,
-          letterSpacing: 1.6,
+          letterSpacing: 1.2,
         ),
       ),
     );
@@ -691,34 +704,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
     String? trailing,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: Ink(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(14),
+              color: Colors.white.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.10),
+                color: Colors.white.withValues(alpha: 0.08),
               ),
             ),
             child: Row(
               children: [
                 Container(
-                  width: 38,
-                  height: 38,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(11),
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(9),
                   ),
-                  child: Icon(icon, color: color, size: 18),
+                  child: Icon(icon, color: color, size: 16),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -726,23 +738,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Text(
                         title,
                         style: const TextStyle(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary,
-                          letterSpacing: -0.2,
                         ),
                       ),
-                      if (sub != null) ...[
-                        const SizedBox(height: 2),
+                      if (sub != null)
                         Text(
                           sub,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 11,
                             color: AppColors.textHint,
-                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                      ],
                     ],
                   ),
                 ),
@@ -754,14 +762,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(
                         fontSize: 11,
                         color: AppColors.textHint,
-                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
                 Icon(
                   Icons.chevron_right_rounded,
                   color: AppColors.textHint,
-                  size: 20,
+                  size: 18,
                 ),
               ],
             ),
@@ -828,34 +835,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Future<void> _openUrl(String url) async {
-    HapticFeedback.lightImpact();
-    final uri = Uri.tryParse(url);
-    if (uri == null) return;
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not open $url')),
-      );
-    }
-  }
-
-  Future<void> _emailSupport() async {
-    HapticFeedback.lightImpact();
-    final uri = Uri(
-      scheme: 'mailto',
-      path: _kSupportEmail,
-      queryParameters: {'subject': 'Caliana support'},
-    );
-    if (!await launchUrl(uri)) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No email client found')),
-      );
-    }
-  }
-
-  void _confirmClearData() {
+  /// Apple 5.1.1(v): account deletion must complete in-app, in one flow,
+  /// with no email or external website. Wipes every piece of user data,
+  /// resets the onboarding flag, and pops to a fresh OnboardingScreen.
+  void _confirmDeleteAccount() {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -863,17 +846,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text(
-          'Clear all data?',
+          'Delete account?',
           style: TextStyle(color: AppColors.textPrimary),
         ),
-        content: Text(
-          'Wipes your profile, every food log, and all chat history with Caliana. Cannot be undone.',
+        content: const Text(
+          "This wipes your profile, food logs, saved recipes, chat "
+          "history, and AI consent on this device. You'll start fresh "
+          "from onboarding. Cannot be undone.",
           style: TextStyle(color: AppColors.textSecondary, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(
+            child: const Text(
               'Cancel',
               style: TextStyle(color: AppColors.textSecondary),
             ),
@@ -884,18 +869,142 @@ class _SettingsScreenState extends State<SettingsScreen> {
               await UserProfileService.instance.reset();
               await UsageService.instance.reset();
               await AppSettingsService.instance.resetToDefault();
+              await SavedMealsService.instance.wipe();
+              await ConsentService.instance.revoke();
+              await OnboardingScreen.markUnseen();
               if (!ctx.mounted) return;
               Navigator.pop(ctx);
               if (!mounted) return;
-              Navigator.pop(context);
+              // Replace the entire stack so the user lands back on
+              // onboarding — no settings, no home behind them.
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(
+                  builder: (_) => OnboardingScreen(
+                    onComplete: () {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                          builder: (_) => ConsentScreen(
+                            onAccepted: () {
+                              Navigator.of(context).pop();
+                            },
+                            onDeclined: () {
+                              Navigator.of(context).pop();
+                            },
+                          ),
+                        ),
+                        (_) => false,
+                      );
+                    },
+                  ),
+                ),
+                (_) => false,
+              );
             },
             child: const Text(
-              'Clear all',
-              style: TextStyle(color: AppColors.accent),
+              'Delete account',
+              style: TextStyle(color: AppColors.error),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  /// Settings → Privacy & data: lets users revoke or re-grant the
+  /// AI-data-sharing consent without deleting their account.
+  Widget _consentRow() {
+    return ListenableBuilder(
+      listenable: ConsentService.instance,
+      builder: (_, __) {
+        final granted = ConsentService.instance.granted;
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.auto_awesome_rounded,
+                size: 18,
+                color: AppColors.primary,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'AI data sharing',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      granted
+                          ? 'Sending text, photos & audio to OpenAI / ElevenLabs.'
+                          : 'Off — Caliana works locally only.',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.textSecondary,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch.adaptive(
+                value: granted,
+                activeColor: AppColors.primary,
+                onChanged: (v) async {
+                  HapticFeedback.lightImpact();
+                  if (v) {
+                    await ConsentService.instance.grant();
+                  } else {
+                    await ConsentService.instance.revoke();
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openLegalUrl(String url) async {
+    HapticFeedback.lightImpact();
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Couldn't open $url"),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _showAbout() {
+    showAboutDialog(
+      context: context,
+      applicationName: 'Caliana',
+      applicationVersion: 'v0.1.0',
+      applicationLegalese: 'Your sassy British AI nutritionist.',
+      children: [
+        const SizedBox(height: 12),
+        const Text(
+          'Caliana uses OpenAI for chat, vision and transcription, and '
+          'ElevenLabs for voice synthesis. You control whether your data '
+          'is shared with these services from the AI data sharing toggle '
+          'above.',
+          style: TextStyle(fontSize: 13, height: 1.45),
+        ),
+      ],
     );
   }
 }
