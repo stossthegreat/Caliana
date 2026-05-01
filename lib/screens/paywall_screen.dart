@@ -21,8 +21,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
   bool _annual = true;
 
   // App Store legal links — replace with real ones when published.
-  static const _termsUrl = 'https://caliana.app/terms';
-  static const _privacyUrl = 'https://caliana.app/privacy';
+  static const _termsUrl = 'https://caliana.app/terms.html';
+  static const _privacyUrl = 'https://caliana.app/privacy.html';
 
   @override
   void initState() {
