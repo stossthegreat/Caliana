@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.gobly.gobly"
+    namespace = "com.caliana.app"
     compileSdk = maxOf(flutter.compileSdkVersion, 35)
     // Pin NDK to a known-good locally installed version
     // (the auto-selected 26.3.11579264 is corrupt on this machine).
@@ -31,7 +31,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.gobly.gobly"
+        applicationId = "com.caliana.app"
         // record_android requires API 23+, image_picker prefers 21+
         minSdk = maxOf(flutter.minSdkVersion, 23)
         targetSdk = maxOf(flutter.targetSdkVersion, 35)
