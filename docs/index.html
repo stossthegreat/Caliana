@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Caliana — your sassy British AI calorie coach</title>
+  <style>
+    :root {
+      --bg: #F7F8FC;
+      --card: #FFFFFF;
+      --text: #0F172A;
+      --muted: #6B7280;
+      --primary: #2F6BFF;
+      --primary-deep: #1F4FE0;
+      --border: #E5E7EB;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 64px 24px 96px; }
+    .hero {
+      text-align: center; padding: 56px 0 24px;
+    }
+    .hero h1 {
+      font-size: 56px; font-weight: 900; letter-spacing: -1.4px; margin: 0;
+      background: linear-gradient(135deg, #5A8AFF 0%, #2F6BFF 50%, #1F4FE0 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p {
+      font-size: 17px; color: var(--muted); margin: 12px 0 0;
+      letter-spacing: -0.2px;
+    }
+    .cards { display: grid; gap: 14px; margin-top: 40px; }
+    .card {
+      display: block; padding: 22px 24px;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 18px; text-decoration: none; color: var(--text);
+      transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(47, 107, 255, 0.4);
+      box-shadow: 0 8px 24px rgba(47, 107, 255, 0.08);
+    }
+    .card h2 {
+      margin: 0 0 4px; font-size: 18px; font-weight: 800;
+      letter-spacing: -0.3px; color: var(--primary);
+    }
+    .card p { margin: 0; font-size: 14px; color: var(--muted); }
+    footer {
+      margin-top: 56px; text-align: center; font-size: 12px; color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="hero">
+      <h1>Caliana</h1>
+      <p>Your sassy British AI calorie coach. Snap, speak, sorted.</p>
+    </div>
+
+    <div class="cards">
+      <a class="card" href="./privacy.html">
+        <h2>Privacy Policy →</h2>
+        <p>What we collect, how it's used, and the third-party AI services we share data with.</p>
+      </a>
+      <a class="card" href="./terms.html">
+        <h2>Terms of Use (EULA) →</h2>
+        <p>The agreement that governs your use of Caliana, including subscriptions and refunds.</p>
+      </a>
+    </div>
+
+    <footer>
+      © Caliana. All rights reserved.
+    </footer>
+  </main>
+</body>
+</html>
