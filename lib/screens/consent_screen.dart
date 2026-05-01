@@ -23,7 +23,7 @@ class ConsentScreen extends StatelessWidget {
     required this.onDeclined,
   });
 
-  static const _privacyUrl = 'https://caliana.app/privacy';
+  static const _privacyUrl = 'https://caliana.app/privacy.html';
 
   @override
   Widget build(BuildContext context) {
