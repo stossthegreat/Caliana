@@ -102,13 +102,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Icons.policy_rounded,
                         'Terms of Service',
                         AppColors.textSecondary,
-                        () => _openLegalUrl('https://caliana.app/terms'),
+                        () => _openLegalUrl('https://caliana.app/terms.html'),
                       ),
                       _linkRow(
                         Icons.privacy_tip_rounded,
                         'Privacy Policy',
                         AppColors.textSecondary,
-                        () => _openLegalUrl('https://caliana.app/privacy'),
+                        () => _openLegalUrl('https://caliana.app/privacy.html'),
                       ),
                       _linkRow(
                         Icons.info_outline_rounded,
