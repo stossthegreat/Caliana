@@ -1,24 +1,49 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
 
 /// Caliana's analytics. Slim event surface — only what we'll actually look at.
+///
+/// Every accessor and method is fail-safe: if Firebase has not been
+/// initialised (e.g. the iOS bundle hasn't been registered in the Firebase
+/// console yet, so there's no GoogleService-Info.plist), accessing
+/// `FirebaseAnalytics.instance` throws. We must never let that throw
+/// propagate up, otherwise it kills the calling tap-handler — which is
+/// exactly what made the Continue button "unresponsive" on iPad in
+/// Apple's review (Submission ID d81df97a). Lazy + try/catch everywhere.
 class AnalyticsService {
   AnalyticsService._();
   static final AnalyticsService instance = AnalyticsService._();
 
-  final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
+  /// Cached client — null until first successful access. Re-attempted on
+  /// every call so analytics start working as soon as Firebase finishes
+  /// initialising mid-session.
+  static FirebaseAnalytics? _cached;
+  FirebaseAnalytics? get _safe {
+    if (_cached != null) return _cached;
+    try {
+      _cached = FirebaseAnalytics.instance;
+      return _cached;
+    } catch (_) {
+      return null;
+    }
+  }
 
-  FirebaseAnalyticsObserver get observer =>
-      FirebaseAnalyticsObserver(analytics: _analytics);
+  /// Returns null if Firebase isn't ready — callers must check
+  /// `firebaseReady` before wiring this into MaterialApp.navigatorObservers.
+  FirebaseAnalyticsObserver? get observer {
+    final a = _safe;
+    if (a == null) return null;
+    return FirebaseAnalyticsObserver(analytics: a);
+  }
 
   // ----- core lifecycle -----
 
   Future<void> logAppOpen() async {
-    try { await _analytics.logAppOpen(); } catch (_) {}
+    try { await _safe?.logAppOpen(); } catch (_) {}
   }
 
   Future<void> logOnboardingStep(int step, String label) async {
     try {
-      await _analytics.logEvent(
+      await _safe?.logEvent(
         name: 'onboarding_step',
         parameters: {'step': step, 'label': label},
       );
@@ -31,7 +56,7 @@ class AnalyticsService {
     required int dailyKcal,
   }) async {
     try {
-      await _analytics.logEvent(
+      await _safe?.logEvent(
         name: 'onboarding_complete',
         parameters: {
           'tone': tone,
@@ -50,7 +75,7 @@ class AnalyticsService {
     required String confidence,
   }) async {
     try {
-      await _analytics.logEvent(
+      await _safe?.logEvent(
         name: 'food_log',
         parameters: {
           'input_method': inputMethod,
@@ -63,7 +88,7 @@ class AnalyticsService {
 
   Future<void> logFoodLogDeleted(String inputMethod) async {
     try {
-      await _analytics.logEvent(
+      await _safe?.logEvent(
         name: 'food_log_deleted',
         parameters: {'input_method': inputMethod},
       );
@@ -77,7 +102,7 @@ class AnalyticsService {
     required String trigger,
   }) async {
     try {
-      await _analytics.logEvent(
+      await _safe?.logEvent(
         name: 'caliana_message',
         parameters: {
           'is_interjection': isInterjection.toString(),
@@ -88,12 +113,12 @@ class AnalyticsService {
   }
 
   Future<void> logCalianaVoicePlayed() async {
-    try { await _analytics.logEvent(name: 'caliana_voice_played'); } catch (_) {}
+    try { await _safe?.logEvent(name: 'caliana_voice_played'); } catch (_) {}
   }
 
   Future<void> logRebuildPlanAccepted({required int daysToRebuild}) async {
     try {
-      await _analytics.logEvent(
+      await _safe?.logEvent(
         name: 'rebuild_plan_accepted',
         parameters: {'days': daysToRebuild},
       );
@@ -104,7 +129,7 @@ class AnalyticsService {
 
   Future<void> logPaywallView(String trigger) async {
     try {
-      await _analytics.logEvent(
+      await _safe?.logEvent(
         name: 'paywall_view',
         parameters: {'trigger': trigger},
       );
@@ -113,7 +138,7 @@ class AnalyticsService {
 
   Future<void> logPaywallSubscribeAttempt(bool annual) async {
     try {
-      await _analytics.logEvent(
+      await _safe?.logEvent(
         name: 'paywall_subscribe_attempt',
         parameters: {'plan': annual ? 'annual' : 'monthly'},
       );
@@ -123,14 +148,14 @@ class AnalyticsService {
   // ----- share -----
 
   Future<void> logShareRecap() async {
-    try { await _analytics.logEvent(name: 'share_recap'); } catch (_) {}
+    try { await _safe?.logEvent(name: 'share_recap'); } catch (_) {}
   }
 
   // ----- ratings -----
 
   Future<void> logRatingSubmit(int stars) async {
     try {
-      await _analytics.logEvent(
+      await _safe?.logEvent(
         name: 'rating_submit',
         parameters: {'stars': stars},
       );
