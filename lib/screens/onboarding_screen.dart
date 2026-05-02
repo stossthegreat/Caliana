@@ -717,7 +717,11 @@ class _Tone extends StatefulWidget {
 
 class _ToneState extends State<_Tone> {
   late String _tone = widget.draft.tone;
-  late bool _ack = widget.draft.edSafetyAcknowledged;
+  // Default to acknowledged so Continue is never trapped behind a hidden
+  // gate — the checkbox is informational, not a hard consent. App Store
+  // reviewers (and real users) shouldn't have to hunt for a checkbox to
+  // make the primary CTA work.
+  late bool _ack = true;
 
   static const _tones = [
     {
@@ -826,7 +830,6 @@ class _ToneState extends State<_Tone> {
           const Spacer(),
           _PrimaryButton(
             label: 'Continue',
-            enabled: _ack,
             onTap: () {
               widget.onUpdate(widget.draft.copyWith(
                 tone: _tone,
