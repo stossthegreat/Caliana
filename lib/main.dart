@@ -105,8 +105,13 @@ class CalianaApp extends StatelessWidget {
       title: 'Caliana',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,
-      navigatorObservers:
-          firebaseReady ? [AnalyticsService.instance.observer] : const [],
+      navigatorObservers: () {
+        if (!firebaseReady) return const <NavigatorObserver>[];
+        final observer = AnalyticsService.instance.observer;
+        return observer == null
+            ? const <NavigatorObserver>[]
+            : <NavigatorObserver>[observer];
+      }(),
       home: home,
     );
   }
