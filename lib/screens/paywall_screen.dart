@@ -175,10 +175,6 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         label: 'Annual',
                         price: '\$39.99',
                         sub: '/year',
-                        // Apple 3.1.2(c) compliance: trial copy must be
-                        // SUBORDINATE to the billed amount. Kept as a quiet
-                        // grey caption (no bold, no brand colour, smaller font).
-                        perDay: 'Includes 7-day free trial',
                         isSelected: _annual,
                         onTap: () => setState(() => _annual = true),
                       ),
@@ -186,7 +182,42 @@ class _PaywallScreenState extends State<PaywallScreen> {
                   ],
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 22),
+
+                // ───────────────────────────────────────────────────────
+                //  PRIMARY BILLED-AMOUNT BLOCK (Apple 3.1.2(c) compliance)
+                // ───────────────────────────────────────────────────────
+                // Apple's 3.1.2(c) explicitly requires that the BILLED
+                // AMOUNT be the most clear and conspicuous pricing element.
+                // We show it once as a large hero line directly above the
+                // CTA so there's zero ambiguity for the reviewer or user.
+                Text(
+                  _annual ? '\$39.99 per year' : '\$5.99 per month',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.textPrimary,
+                    letterSpacing: -0.6,
+                    height: 1.05,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                // Subordinate billing-cycle clarifier in textSecondary.
+                Text(
+                  _annual
+                      ? 'Auto-renewing subscription billed annually'
+                      : 'Auto-renewing subscription billed monthly',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textSecondary,
+                    letterSpacing: -0.1,
+                  ),
+                ),
+
+                const SizedBox(height: 14),
                 SizedBox(
                   width: double.infinity,
                   height: 58,
@@ -232,16 +263,14 @@ class _PaywallScreenState extends State<PaywallScreen> {
                           ),
                         ],
                       ),
-                      // Apple 3.1.2(c) compliance: the CTA leads with the
-                      // BILLED AMOUNT. The trial mention lives only in the
-                      // smaller subordinate caption below + the disclosure.
-                      child: Center(
+                      // Apple 3.1.2(c) compliance: CTA action verb only — no
+                      // trial copy, no discount copy. The billed amount is
+                      // the conspicuous element directly above this button.
+                      child: const Center(
                         child: Text(
-                          _annual
-                              ? 'Subscribe — \$39.99 / year'
-                              : 'Subscribe — \$5.99 / month',
-                          style: const TextStyle(
-                            fontSize: 16,
+                          'Subscribe',
+                          style: TextStyle(
+                            fontSize: 17,
                             fontWeight: FontWeight.w800,
                             color: Colors.white,
                             letterSpacing: -0.3,
@@ -254,23 +283,35 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
                 const SizedBox(height: 12),
 
-                // App Store-compliant disclosure (clearly legible)
+                // ───────────────────────────────────────────────────────
+                //  AUTO-RENEW DISCLOSURE (Apple 3.1.2(c) compliance)
+                // ───────────────────────────────────────────────────────
+                // Required disclosure under the CTA. Mentions:
+                //   • Subscription length and price (clear up-front)
+                //   • Free trial duration and what gets billed afterward
+                //   • Auto-renewal terms
+                //   • Cancellation method (App Store account settings)
+                // Subordinate to the billed-amount block above.
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Text(
                     _annual
-                        ? '7-day free trial, then \$39.99 / year. Auto-renews '
-                            'unless cancelled at least 24 hours before the trial '
-                            'ends. Cancel any time in your App Store account '
-                            'settings — your subscription continues until the '
-                            'end of the current period.'
-                        : 'Auto-renewing subscription, \$5.99 per month. '
-                            'Renews automatically unless cancelled at least 24 '
-                            'hours before the period ends. Cancel any time in '
-                            'your App Store account settings.',
+                        ? 'Caliana Pro — 1 year, \$39.99 USD. Includes a '
+                            '7-day free trial for new subscribers; you will '
+                            'be charged \$39.99 USD when the 7-day free '
+                            'trial ends. Subscription auto-renews at '
+                            '\$39.99 USD per year unless cancelled at least '
+                            '24 hours before the end of the current period. '
+                            'Manage or cancel any time in your App Store '
+                            'account settings.'
+                        : 'Caliana Pro — 1 month, \$5.99 USD. Subscription '
+                            'auto-renews at \$5.99 USD per month unless '
+                            'cancelled at least 24 hours before the end of '
+                            'the current period. Manage or cancel any time '
+                            'in your App Store account settings.',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 11,
                       height: 1.45,
                       color: AppColors.textSecondary,
                       fontWeight: FontWeight.w500,
@@ -333,11 +374,13 @@ class _PaywallScreenState extends State<PaywallScreen> {
     required String label,
     required String price,
     required String sub,
-    String? badge,
-    String? perDay,
     required bool isSelected,
     required VoidCallback onTap,
   }) {
+    // Plan-selector card. Apple 3.1.2(c): no trial / discount / "save"
+    // copy lives in this card — only the plan name and the billed
+    // amount. Trial info is disclosed once, in the dedicated
+    // disclosure paragraph below the CTA.
     return GestureDetector(
       onTap: () {
         onTap();
@@ -345,17 +388,13 @@ class _PaywallScreenState extends State<PaywallScreen> {
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        height: 116,
+        height: 100,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primarySoft
-              : Colors.white,
+          color: isSelected ? AppColors.primarySoft : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected
-                ? AppColors.primary
-                : AppColors.surfaceBorder,
+            color: isSelected ? AppColors.primary : AppColors.surfaceBorder,
             width: isSelected ? 1.6 : 1,
           ),
           boxShadow: isSelected
@@ -377,42 +416,16 @@ class _PaywallScreenState extends State<PaywallScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.4,
-                    color: isSelected
-                        ? AppColors.primary
-                        : AppColors.textSecondary,
-                  ),
-                ),
-                if (badge != null) ...[
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      badge,
-                      style: const TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.4,
+                color: isSelected
+                    ? AppColors.primary
+                    : AppColors.textSecondary,
+              ),
             ),
             const Spacer(),
             Row(
@@ -420,42 +433,27 @@ class _PaywallScreenState extends State<PaywallScreen> {
               children: [
                 Text(
                   price,
-                  style: TextStyle(
-                    fontSize: 22,
+                  style: const TextStyle(
+                    fontSize: 24,
                     fontWeight: FontWeight.w900,
-                    color: isSelected
-                        ? AppColors.textPrimary
-                        : AppColors.textSecondary,
+                    color: AppColors.textPrimary,
                     letterSpacing: -0.3,
                   ),
                 ),
                 const SizedBox(width: 3),
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 3),
+                  padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
                     sub,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textHint,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ),
               ],
             ),
-            if (perDay != null) ...[
-              const SizedBox(height: 4),
-              // Apple 3.1.2(c): trial / introductory copy must be subordinate
-              // to the billed amount. Quiet grey, regular weight, smaller font
-              // — clearly secondary to the $39.99 above.
-              Text(
-                perDay,
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: AppColors.textHint,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
           ],
         ),
       ),
