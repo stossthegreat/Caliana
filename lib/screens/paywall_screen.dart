@@ -175,8 +175,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         label: 'Annual',
                         price: '\$39.99',
                         sub: '/year',
-                        badge: 'SAVE 44%',
-                        perDay: '7-day free trial',
+                        // Apple 3.1.2(c) compliance: trial copy must be
+                        // SUBORDINATE to the billed amount. Kept as a quiet
+                        // grey caption (no bold, no brand colour, smaller font).
+                        perDay: 'Includes 7-day free trial',
                         isSelected: _annual,
                         onTap: () => setState(() => _annual = true),
                       ),
@@ -230,10 +232,13 @@ class _PaywallScreenState extends State<PaywallScreen> {
                           ),
                         ],
                       ),
+                      // Apple 3.1.2(c) compliance: the CTA leads with the
+                      // BILLED AMOUNT. The trial mention lives only in the
+                      // smaller subordinate caption below + the disclosure.
                       child: Center(
                         child: Text(
                           _annual
-                              ? 'Start 7-day free trial'
+                              ? 'Subscribe — \$39.99 / year'
                               : 'Subscribe — \$5.99 / month',
                           style: const TextStyle(
                             fontSize: 16,
@@ -439,12 +444,15 @@ class _PaywallScreenState extends State<PaywallScreen> {
             ),
             if (perDay != null) ...[
               const SizedBox(height: 4),
+              // Apple 3.1.2(c): trial / introductory copy must be subordinate
+              // to the billed amount. Quiet grey, regular weight, smaller font
+              // — clearly secondary to the $39.99 above.
               Text(
                 perDay,
                 style: const TextStyle(
-                  fontSize: 11,
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 10,
+                  color: AppColors.textHint,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
