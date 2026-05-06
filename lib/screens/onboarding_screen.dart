@@ -230,37 +230,45 @@ class _Welcome extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
       child: Column(
         children: [
-          const Spacer(flex: 2),
-          Image.asset(
-            'assets/caliana.png',
-            width: 220,
-            height: 220,
-            fit: BoxFit.contain,
-          ),
-          const SizedBox(height: 18),
-          const Text(
-            'Caliana',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 46,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-              letterSpacing: -1.6,
-              height: 1,
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Column(
+                children: [
+                  Image.asset(
+                    'assets/caliana.png',
+                    width: 220,
+                    height: 220,
+                    fit: BoxFit.contain,
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Caliana',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 46,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                      letterSpacing: -1.6,
+                      height: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Your AI nutrition coach.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textSecondary,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 10),
-          Text(
-            'Your AI nutrition coach.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textSecondary,
-              letterSpacing: -0.2,
-            ),
-          ),
-          const Spacer(flex: 3),
           _PrimaryButton(label: 'Continue', onTap: onNext),
         ],
       ),
@@ -299,76 +307,87 @@ class _BiometricsState extends State<_Biometrics> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _Title('A bit about you'),
-          const _Subtitle(
-              'Caliana needs the basics to calculate your numbers.'),
-          const SizedBox(height: 24),
-          Text('Sex',
-              style: TextStyle(
-                fontSize: 13,
-                color: AppColors.textHint,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.6,
-              )),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _SegButton(
-                  label: 'Female',
-                  selected: _sex == 'female',
-                  onTap: () => setState(() => _sex = 'female'),
-                ),
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _Title('A bit about you'),
+                  const _Subtitle(
+                      'Caliana needs the basics to calculate your numbers.'),
+                  const SizedBox(height: 24),
+                  Text('Sex',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textHint,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
+                      )),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _SegButton(
+                          label: 'Female',
+                          selected: _sex == 'female',
+                          onTap: () => setState(() => _sex = 'female'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _SegButton(
+                          label: 'Male',
+                          selected: _sex == 'male',
+                          onTap: () => setState(() => _sex = 'male'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _SegButton(
+                          label: 'Other',
+                          selected: _sex == 'other',
+                          onTap: () => setState(() => _sex = 'other'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  _SliderRow(
+                    label: 'Age',
+                    value: _age.toDouble(),
+                    min: 14,
+                    max: 90,
+                    divisions: 76,
+                    display: '$_age yrs',
+                    onChanged: (v) => setState(() => _age = v.round()),
+                  ),
+                  const SizedBox(height: 16),
+                  _SliderRow(
+                    label: 'Height',
+                    value: _heightCm,
+                    min: 130,
+                    max: 220,
+                    divisions: 90,
+                    display: '${_heightCm.round()} cm',
+                    onChanged: (v) => setState(() => _heightCm = v),
+                  ),
+                  const SizedBox(height: 16),
+                  _SliderRow(
+                    label: 'Current weight',
+                    value: _weightKg,
+                    min: 35,
+                    max: 200,
+                    divisions: 165,
+                    display: '${_weightKg.toStringAsFixed(1)} kg',
+                    onChanged: (v) => setState(() => _weightKg = v),
+                  ),
+                  const SizedBox(height: 16),
+                ],
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _SegButton(
-                  label: 'Male',
-                  selected: _sex == 'male',
-                  onTap: () => setState(() => _sex = 'male'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _SegButton(
-                  label: 'Other',
-                  selected: _sex == 'other',
-                  onTap: () => setState(() => _sex = 'other'),
-                ),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 24),
-          _SliderRow(
-            label: 'Age',
-            value: _age.toDouble(),
-            min: 14,
-            max: 90,
-            divisions: 76,
-            display: '$_age yrs',
-            onChanged: (v) => setState(() => _age = v.round()),
-          ),
-          const SizedBox(height: 16),
-          _SliderRow(
-            label: 'Height',
-            value: _heightCm,
-            min: 130,
-            max: 220,
-            divisions: 90,
-            display: '${_heightCm.round()} cm',
-            onChanged: (v) => setState(() => _heightCm = v),
-          ),
-          const SizedBox(height: 16),
-          _SliderRow(
-            label: 'Current weight',
-            value: _weightKg,
-            min: 35,
-            max: 200,
-            divisions: 165,
-            display: '${_weightKg.toStringAsFixed(1)} kg',
-            onChanged: (v) => setState(() => _weightKg = v),
-          ),
-          const Spacer(),
           _PrimaryButton(
             label: 'Continue',
             onTap: () {
@@ -422,78 +441,89 @@ class _GoalState extends State<_Goal> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _Title('What\'s the mission?'),
-          const _Subtitle('Caliana shapes your day around this.'),
-          const SizedBox(height: 24),
-          _GoalCard(
-            emoji: '⬇️',
-            title: 'Lose weight',
-            sub: 'Sustainable cut — about a pound a week',
-            selected: _goal == 'lose',
-            onTap: () => setState(() {
-              _goal = 'lose';
-              if (_target >= widget.draft.weightKg) {
-                _target = (widget.draft.weightKg - 5).clamp(35, 200);
-              }
-            }),
-          ),
-          const SizedBox(height: 10),
-          _GoalCard(
-            emoji: '⚖️',
-            title: 'Maintain',
-            sub: 'Hold steady — eat at maintenance',
-            selected: _goal == 'maintain',
-            onTap: () => setState(() {
-              _goal = 'maintain';
-              _target = widget.draft.weightKg;
-            }),
-          ),
-          const SizedBox(height: 10),
-          _GoalCard(
-            emoji: '⬆️',
-            title: 'Gain weight',
-            sub: 'Lean bulk — slow, intentional gain',
-            selected: _goal == 'gain',
-            onTap: () => setState(() {
-              _goal = 'gain';
-              if (_target <= widget.draft.weightKg) {
-                _target = (widget.draft.weightKg + 5).clamp(35, 200);
-              }
-            }),
-          ),
-          if (_goal != 'maintain') ...[
-            const SizedBox(height: 22),
-            _SliderRow(
-              label: 'Target weight',
-              value: _target,
-              min: 35,
-              max: 200,
-              divisions: 165,
-              display: '${_target.toStringAsFixed(1)} kg',
-              onChanged: (v) => setState(() => _target = v),
-            ),
-            if (eta != null && delta.abs() > 0) ...[
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                decoration: GlassDecoration.coralCard(opacity: 0.05),
-                child: Text(
-                  'Caliana reckons you\'ll hit it around '
-                  '${_monthName(eta.month)} ${eta.day}, ${eta.year}.',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w500,
-                    height: 1.4,
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _Title('What\'s the mission?'),
+                  const _Subtitle('Caliana shapes your day around this.'),
+                  const SizedBox(height: 24),
+                  _GoalCard(
+                    emoji: '⬇️',
+                    title: 'Lose weight',
+                    sub: 'Sustainable cut — about a pound a week',
+                    selected: _goal == 'lose',
+                    onTap: () => setState(() {
+                      _goal = 'lose';
+                      if (_target >= widget.draft.weightKg) {
+                        _target = (widget.draft.weightKg - 5).clamp(35, 200);
+                      }
+                    }),
                   ),
-                ),
+                  const SizedBox(height: 10),
+                  _GoalCard(
+                    emoji: '⚖️',
+                    title: 'Maintain',
+                    sub: 'Hold steady — eat at maintenance',
+                    selected: _goal == 'maintain',
+                    onTap: () => setState(() {
+                      _goal = 'maintain';
+                      _target = widget.draft.weightKg;
+                    }),
+                  ),
+                  const SizedBox(height: 10),
+                  _GoalCard(
+                    emoji: '⬆️',
+                    title: 'Gain weight',
+                    sub: 'Lean bulk — slow, intentional gain',
+                    selected: _goal == 'gain',
+                    onTap: () => setState(() {
+                      _goal = 'gain';
+                      if (_target <= widget.draft.weightKg) {
+                        _target = (widget.draft.weightKg + 5).clamp(35, 200);
+                      }
+                    }),
+                  ),
+                  if (_goal != 'maintain') ...[
+                    const SizedBox(height: 22),
+                    _SliderRow(
+                      label: 'Target weight',
+                      value: _target,
+                      min: 35,
+                      max: 200,
+                      divisions: 165,
+                      display: '${_target.toStringAsFixed(1)} kg',
+                      onChanged: (v) => setState(() => _target = v),
+                    ),
+                    if (eta != null && delta.abs() > 0) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        decoration: GlassDecoration.coralCard(opacity: 0.05),
+                        child: Text(
+                          'Caliana reckons you\'ll hit it around '
+                          '${_monthName(eta.month)} ${eta.day}, ${eta.year}.',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w500,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                  const SizedBox(height: 16),
+                ],
               ),
-            ],
-          ],
-          const Spacer(),
+            ),
+          ),
           _PrimaryButton(
             label: 'Continue',
             onTap: () {
@@ -546,20 +576,32 @@ class _ActivityState extends State<_Activity> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _Title('How active are you?'),
-          const _Subtitle('Be honest — Caliana can tell.'),
-          const SizedBox(height: 24),
-          ..._levels.map((opt) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _GoalCard(
-                  emoji: opt['emoji']!,
-                  title: opt['title']!,
-                  sub: opt['sub']!,
-                  selected: _level == opt['value'],
-                  onTap: () => setState(() => _level = opt['value']!),
-                ),
-              )),
-          const Spacer(),
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _Title('How active are you?'),
+                  const _Subtitle('Be honest — Caliana can tell.'),
+                  const SizedBox(height: 24),
+                  ..._levels.map((opt) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _GoalCard(
+                          emoji: opt['emoji']!,
+                          title: opt['title']!,
+                          sub: opt['sub']!,
+                          selected: _level == opt['value'],
+                          onTap: () =>
+                              setState(() => _level = opt['value']!),
+                        ),
+                      )),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
+          ),
           _PrimaryButton(
             label: 'Continue',
             onTap: () {
@@ -637,43 +679,55 @@ class _DietState extends State<_Diet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _Title('Diet & allergies'),
-          const _Subtitle('So Caliana never suggests something you can\'t eat.'),
-          const SizedBox(height: 18),
-          Text('Diet', style: _labelStyle()),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _diets
-                .map((d) => _PillChip(
-                      label: d == 'none' ? 'No restriction' : d,
-                      selected: _diet == d,
-                      onTap: () => setState(() => _diet = d),
-                    ))
-                .toList(),
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _Title('Diet & allergies'),
+                  const _Subtitle(
+                      'So Caliana never suggests something you can\'t eat.'),
+                  const SizedBox(height: 18),
+                  Text('Diet', style: _labelStyle()),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _diets
+                        .map((d) => _PillChip(
+                              label: d == 'none' ? 'No restriction' : d,
+                              selected: _diet == d,
+                              onTap: () => setState(() => _diet = d),
+                            ))
+                        .toList(),
+                  ),
+                  const SizedBox(height: 22),
+                  Text('Allergies (multi)', style: _labelStyle()),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _common
+                        .map((a) => _PillChip(
+                              label: a,
+                              selected: _allergies.contains(a),
+                              onTap: () => setState(() {
+                                if (_allergies.contains(a)) {
+                                  _allergies.remove(a);
+                                } else {
+                                  _allergies.add(a);
+                                }
+                              }),
+                            ))
+                        .toList(),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(height: 22),
-          Text('Allergies (multi)', style: _labelStyle()),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _common
-                .map((a) => _PillChip(
-                      label: a,
-                      selected: _allergies.contains(a),
-                      onTap: () => setState(() {
-                        if (_allergies.contains(a)) {
-                          _allergies.remove(a);
-                        } else {
-                          _allergies.add(a);
-                        }
-                      }),
-                    ))
-                .toList(),
-          ),
-          const Spacer(),
           _PrimaryButton(
             label: 'Continue',
             onTap: () {
@@ -751,83 +805,97 @@ class _ToneState extends State<_Tone> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _Title('Pick Caliana\'s tone'),
-          const _Subtitle('You can change this any time in Settings.'),
-          const SizedBox(height: 22),
-          ..._tones.map((opt) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _GoalCard(
-                  emoji: opt['emoji']!,
-                  title: opt['title']!,
-                  sub: opt['sub']!,
-                  selected: _tone == opt['value'],
-                  onTap: () => setState(() => _tone = opt['value']!),
-                ),
-              )),
-          const SizedBox(height: 14),
-          GestureDetector(
-            onTap: () => setState(() => _ack = !_ack),
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: _ack
-                      ? AppColors.primary
-                      : AppColors.surfaceBorder,
-                  width: _ack ? 1.4 : 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.shadow.withValues(alpha: 0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      color: _ack
-                          ? AppColors.primary
-                          : Colors.white,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: _ack
-                            ? AppColors.primary
-                            : AppColors.surfaceBorder,
-                        width: 1.5,
+                  const _Title('Pick Caliana\'s tone'),
+                  const _Subtitle(
+                      'You can change this any time in Settings.'),
+                  const SizedBox(height: 22),
+                  ..._tones.map((opt) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _GoalCard(
+                          emoji: opt['emoji']!,
+                          title: opt['title']!,
+                          sub: opt['sub']!,
+                          selected: _tone == opt['value'],
+                          onTap: () =>
+                              setState(() => _tone = opt['value']!),
+                        ),
+                      )),
+                  const SizedBox(height: 14),
+                  GestureDetector(
+                    onTap: () => setState(() => _ack = !_ack),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: _ack
+                              ? AppColors.primary
+                              : AppColors.surfaceBorder,
+                          width: _ack ? 1.4 : 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.shadow.withValues(alpha: 0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              color: _ack
+                                  ? AppColors.primary
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: _ack
+                                    ? AppColors.primary
+                                    : AppColors.surfaceBorder,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: _ack
+                                ? const Icon(Icons.check_rounded,
+                                    size: 16, color: Colors.white)
+                                : null,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Caliana talks back. If you have a history of '
+                              'disordered eating, please choose Polite or use '
+                              'a different app. Caliana will never shame your '
+                              'body — only the choices.',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                height: 1.4,
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    child: _ack
-                        ? const Icon(Icons.check_rounded,
-                            size: 16, color: Colors.white)
-                        : null,
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Caliana talks back. If you have a history of disordered '
-                      'eating, please choose Polite or use a different app. '
-                      'Caliana will never shame your body — only the choices.',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        height: 1.4,
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
+                  const SizedBox(height: 16),
                 ],
               ),
             ),
           ),
-          const Spacer(),
           _PrimaryButton(
             label: 'Continue',
             onTap: () {
@@ -878,30 +946,42 @@ class _NotificationsState extends State<_Notifications> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _Title('When can Caliana ping?'),
-          const _Subtitle('Max one push a day. She\'s not Duolingo.'),
-          const SizedBox(height: 22),
-          ..._windows.map((w) {
-            final h = w['hour'] as int;
-            final selected = _hours.contains(h);
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _GoalCard(
-                emoji: '🔔',
-                title: w['label'] as String,
-                sub: w['sub'] as String,
-                selected: selected,
-                onTap: () => setState(() {
-                  if (selected) {
-                    _hours.remove(h);
-                  } else {
-                    _hours.add(h);
-                  }
-                }),
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _Title('When can Caliana ping?'),
+                  const _Subtitle(
+                      'Max one push a day. She\'s not Duolingo.'),
+                  const SizedBox(height: 22),
+                  ..._windows.map((w) {
+                    final h = w['hour'] as int;
+                    final selected = _hours.contains(h);
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _GoalCard(
+                        emoji: '🔔',
+                        title: w['label'] as String,
+                        sub: w['sub'] as String,
+                        selected: selected,
+                        onTap: () => setState(() {
+                          if (selected) {
+                            _hours.remove(h);
+                          } else {
+                            _hours.add(h);
+                          }
+                        }),
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 16),
+                ],
               ),
-            );
-          }),
-          const Spacer(),
+            ),
+          ),
           _PrimaryButton(
             label: 'Continue',
             onTap: () {
@@ -963,49 +1043,61 @@ class _PlanRevealState extends State<_PlanReveal> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _Title('Here\'s your plan'),
-          const _Subtitle('Caliana ran the numbers.'),
-          const Spacer(),
-          Center(
-            child: Column(
-              children: [
-                Text(
-                  '$_shownKcal',
-                  style: const TextStyle(
-                    fontSize: 96,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.accent,
-                    letterSpacing: -3,
-                    fontFeatures: [FontFeature.tabularFigures()],
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _Title('Here\'s your plan'),
+                  const _Subtitle('Caliana ran the numbers.'),
+                  const SizedBox(height: 28),
+                  Center(
+                    child: Column(
+                      children: [
+                        Text(
+                          '$_shownKcal',
+                          style: const TextStyle(
+                            fontSize: 96,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.accent,
+                            letterSpacing: -3,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                        Text(
+                          'kcal per day',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textHint,
+                            letterSpacing: 1.4,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                Text(
-                  'kcal per day',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textHint,
-                    letterSpacing: 1.4,
-                    fontWeight: FontWeight.w700,
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                    decoration: GlassDecoration.card(opacity: 0.05),
+                    child: Column(
+                      children: [
+                        _planRow('Protein', '${p.dailyProteinGrams} g',
+                            AppColors.macroProtein),
+                        _planRow('Carbs', '${p.dailyCarbsGrams} g',
+                            AppColors.macroCarbs),
+                        _planRow('Fat', '${p.dailyFatGrams} g',
+                            AppColors.macroFat),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-            decoration: GlassDecoration.card(opacity: 0.05),
-            child: Column(
-              children: [
-                _planRow('Protein', '${p.dailyProteinGrams} g',
-                    AppColors.macroProtein),
-                _planRow('Carbs', '${p.dailyCarbsGrams} g',
-                    AppColors.macroCarbs),
-                _planRow('Fat', '${p.dailyFatGrams} g', AppColors.macroFat),
-              ],
-            ),
-          ),
-          const Spacer(),
           _PrimaryButton(label: 'Looks good', onTap: widget.onNext),
         ],
       ),
@@ -1060,27 +1152,38 @@ class _SocialProof extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
       child: Column(
         children: [
-          const _Title('Caliana\'s deal with you'),
-          const _Subtitle('Three things she promises.'),
-          const SizedBox(height: 24),
-          Center(
-            child: Image.asset(
-              'assets/caliana.png',
-              width: 130,
-              height: 130,
-              fit: BoxFit.contain,
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const _Title('Caliana\'s deal with you'),
+                  const _Subtitle('Three things she promises.'),
+                  const SizedBox(height: 24),
+                  Center(
+                    child: Image.asset(
+                      'assets/caliana.png',
+                      width: 130,
+                      height: 130,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  _promise('💯', 'Honest billing',
+                      'Cancel in two taps. No tricks, no hidden weekly charges.'),
+                  const SizedBox(height: 10),
+                  _promise('🤝', 'No body shame',
+                      'She\'ll roast your choices, never your body. Pick Polite anytime.'),
+                  const SizedBox(height: 10),
+                  _promise('🛠️', 'Fix bad days',
+                      'Blow lunch? She rebuilds the next 1–3 days, not just nags you.'),
+                  const SizedBox(height: 16),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 18),
-          _promise('💯', 'Honest billing',
-              'Cancel in two taps. No tricks, no hidden weekly charges.'),
-          const SizedBox(height: 10),
-          _promise('🤝', 'No body shame',
-              'She\'ll roast your choices, never your body. Pick Polite anytime.'),
-          const SizedBox(height: 10),
-          _promise('🛠️', 'Fix bad days',
-              'Blow lunch? She rebuilds the next 1–3 days, not just nags you.'),
-          const Spacer(),
           _PrimaryButton(label: 'Show me', onTap: onNext),
         ],
       ),
@@ -1143,14 +1246,29 @@ class _SoftPaywall extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _Title('Try Caliana Pro'),
-          const _Subtitle('3 days free. Cancel any time, two taps.'),
-          const SizedBox(height: 22),
-          _feature('🤳', 'Unlimited photo logging', 'Free tier: 1 a day'),
-          _feature('🗣️', 'Voice replies (ElevenLabs)', 'Hear Caliana out loud'),
-          _feature('📅', 'Multi-day rebuild plans', 'Fix a bad week, properly'),
-          _feature('🎨', 'Sunday recap share-card', 'Caliana wrap, exportable'),
-          const Spacer(),
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _Title('Try Caliana Pro'),
+                  const _Subtitle('3 days free. Cancel any time, two taps.'),
+                  const SizedBox(height: 22),
+                  _feature('🤳', 'Unlimited photo logging',
+                      'Free tier: 1 a day'),
+                  _feature('🗣️', 'Voice replies (ElevenLabs)',
+                      'Hear Caliana out loud'),
+                  _feature('📅', 'Multi-day rebuild plans',
+                      'Fix a bad week, properly'),
+                  _feature('🎨', 'Sunday recap share-card',
+                      'Caliana wrap, exportable'),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
+          ),
           _PrimaryButton(label: 'Start 3-day free trial', onTap: onSubscribe),
           const SizedBox(height: 8),
           GestureDetector(
