@@ -1,8 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'theme/app_theme.dart';
-import 'screens/today_screen.dart';
+import 'screens/main_tabs.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/consent_screen.dart';
 import 'services/user_profile_service.dart';
@@ -10,8 +12,11 @@ import 'services/app_settings_service.dart';
 import 'services/usage_service.dart';
 import 'services/day_log_service.dart';
 import 'services/saved_meals_service.dart';
+import 'services/plan_service.dart';
 import 'services/consent_service.dart';
 import 'services/review_prompt_service.dart';
+import 'services/recovery_autopilot.dart';
+import 'services/revenuecat_service.dart';
 import 'services/analytics_service.dart';
 
 void main() async {
@@ -53,11 +58,21 @@ void main() async {
       UsageService.instance.load(),
       DayLogService.instance.load(),
       SavedMealsService.instance.load(),
+      PlanService.instance.load(),
       ConsentService.instance.load(),
       ReviewPromptService.instance.load(),
       OnboardingScreen.hasBeenSeen().then((v) => onboardingSeen = v),
     ]);
     debugPrint('✅ Caliana services loaded');
+
+    // Watch the day log — when the user crosses an overage threshold,
+    // this rebuilds tomorrow's plan in recovery mode automatically.
+    // The user logs reality; Caliana fixes the future.
+    RecoveryAutopilot.instance.start();
+
+    // Configure RevenueCat in the background — fire-and-forget so a
+    // bad / missing API key never blocks the app from booting.
+    unawaited(RevenueCatService.instance.bootstrap());
 
     if (firebaseReady) {
       try {
@@ -99,7 +114,7 @@ class CalianaApp extends StatelessWidget {
     } else if (!ConsentService.instance.granted) {
       home = const _ConsentGate();
     } else {
-      home = const TodayScreen();
+      home = const MainTabs();
     }
     return MaterialApp(
       title: 'Caliana',
@@ -126,7 +141,7 @@ class _OnboardingGate extends StatelessWidget {
     return OnboardingScreen(
       onComplete: () {
         final next = ConsentService.instance.granted
-            ? const TodayScreen()
+            ? const MainTabs()
             : const _ConsentGate();
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(
@@ -154,7 +169,7 @@ class _ConsentGate extends StatelessWidget {
     void goHome() {
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          pageBuilder: (_, __, ___) => const TodayScreen(),
+          pageBuilder: (_, __, ___) => const MainTabs(),
           transitionsBuilder: (_, a, __, child) =>
               FadeTransition(opacity: a, child: child),
           transitionDuration: const Duration(milliseconds: 400),
