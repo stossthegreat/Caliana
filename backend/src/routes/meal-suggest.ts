@@ -297,23 +297,31 @@ function scoreRecipe(
 }
 
 function recipeToMealIdea(r: Recipe): RichMealIdea {
+  // Whenever a recipe declares more than one serving, scale EVERYTHING
+  // — calories, macros, ingredients — down to a single portion.
+  // The user gets one-person meals, never "feeds 4" totals.
+  //
+  // Heuristic for calories specifically: JSON-LD's nutrition.calories
+  // is supposed to be per serving by spec, but a meaningful share of
+  // publishers encode the whole-recipe total. We split per-serving by
+  // default; if the per-serving figure looks implausible for one
+  // human plate (>1500 kcal) we treat it as a whole-recipe total and
+  // divide, never multiply.
   const original = r.servings && r.servings > 1 ? r.servings : 1;
   const factor = original > 1 ? 1 / original : 1;
 
-  // Calorie scaling — JSON-LD's nutrition.calories is *supposed* to be
-  // per serving, but lots of publishers encode the whole-recipe total.
-  // Detect the multi-serving total case (calories > 1200 AND servings
-  // > 1) and divide. Single-serving plates over 1200 kcal (e.g. a fast
-  // food meal) stay as-is.
   const rawCals = r.nutrition?.calories ?? 0;
-  const looksLikeWholeRecipeTotal = rawCals > 1200 && original > 1;
-  const calsPerServing = looksLikeWholeRecipeTotal
-    ? Math.round(rawCals / original)
-    : Math.round(rawCals);
+  const perServingGuess = original > 1 ? rawCals / original : rawCals;
+  // If even the supposed per-serving figure is over 1500 kcal, the
+  // publisher almost certainly mis-tagged the whole-recipe total —
+  // divide once more.
+  const calsPerServing = perServingGuess > 1500 && original > 1
+    ? Math.round(rawCals / original / original)
+    : Math.round(perServingGuess);
 
-  const scale = (g: number): number =>
-    looksLikeWholeRecipeTotal ? Math.round(g * factor) : g;
-
+  // Macros + ingredients always scale by 1/servings when servings > 1.
+  // No conditional — the goal is one human portion, every time.
+  const scale = (g: number): number => Math.round(g * factor);
   const scaledIngredients = r.ingredients
     .slice(0, 12)
     .map((line) => (factor < 1 ? scaleIngredient(line, factor) : line));

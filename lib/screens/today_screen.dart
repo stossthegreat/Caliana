@@ -124,7 +124,7 @@ class _TodayScreenState extends State<TodayScreen> {
     final text = _interjectionLine(slot, profile.tone, addr);
     final chips = slot == 'dinner'
         ? const <String>['Suggest dinner', 'Snap food']
-        : const <String>['Log meal', 'Snap food'];
+        : const <String>['Snap food'];
 
     await DayLogService.instance.addMessage(
       now,
@@ -646,9 +646,6 @@ class _TodayScreenState extends State<TodayScreen> {
       case 'plan_tomorrow': // legacy id
         HapticFeedback.lightImpact();
         MainTabs.goToPlan();
-        break;
-      case 'log_meal':
-        _textFocus.requestFocus();
         break;
       case 'high_protein':
         _suggestRecipes(

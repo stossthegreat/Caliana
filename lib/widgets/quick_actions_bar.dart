@@ -28,7 +28,6 @@ class QuickActionsBar extends StatelessWidget {
   static const actions = <QuickAction>[
     QuickAction('fix_my_day', '⚡', 'Fix my day', primary: true),
     QuickAction('fix_tomorrow', '📅', 'Fix tomorrow'),
-    QuickAction('log_meal', '🍝', 'Log meal'),
     QuickAction('high_protein', '🍗', 'High protein'),
     QuickAction('eat_clean', '🥗', 'Eat clean'),
     QuickAction('had_junk', '🍔', 'Had junk'),
