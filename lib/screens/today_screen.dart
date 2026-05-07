@@ -19,6 +19,7 @@ import '../widgets/mini_macro_ring.dart';
 import '../widgets/date_strip.dart';
 import '../widgets/caliana_bubble.dart';
 import '../widgets/caliana_character.dart';
+import '../widgets/food_edit_sheet.dart';
 import '../widgets/input_dock.dart';
 import '../widgets/quick_actions_bar.dart';
 import '../widgets/recipes_sheet.dart';
@@ -414,6 +415,13 @@ class _TodayScreenState extends State<TodayScreen> {
                       message: msg,
                       onChipTap: (label) => _onActionChip(label, msg),
                       onLongPress: () => _onMessageLongPress(msg),
+                      onTap: () => _onMessageTap(msg),
+                      // Two actions on every recipe in chat:
+                      //   • Save → keep the recipe in the Recipes Sheet
+                      //   • I ate it → log the kcal/macros to today's
+                      //     ring instantly. Tap once, calories are in.
+                      onCommitMeal: _commitMealFromIdea,
+                      onSaveMeal: _saveMealFromIdea,
                     );
                   },
                 ),
@@ -889,6 +897,117 @@ class _TodayScreenState extends State<TodayScreen> {
     if (msg.foodEntry != null) {
       _confirmDeleteEntry(msg.foodEntry!);
     }
+  }
+
+  /// Tapping a food-log card in chat opens an edit sheet so the user
+  /// can correct macros / delete a misread entry without long-pressing.
+  void _onMessageTap(ChatMessage msg) {
+    if (msg.foodEntry != null) {
+      _openFoodEditSheet(msg.foodEntry!);
+    }
+  }
+
+  /// Commit a chat-suggested meal as a real food entry on today.
+  /// Triggered by the "I ate it" button on every recipe card. The
+  /// calories land in today's ring instantly.
+  Future<void> _commitMealFromIdea(MealIdea idea) async {
+    HapticFeedback.mediumImpact();
+    final now = DateTime.now();
+    final entry = FoodEntry(
+      id: 'fe_${now.millisecondsSinceEpoch}',
+      timestamp: now,
+      name: idea.name,
+      calories: idea.calories,
+      proteinGrams: idea.protein,
+      carbsGrams: idea.carbs,
+      fatGrams: idea.fat,
+      inputMethod: 'plan',
+      photoPath: null,
+      confidence: 'high',
+      notes: 'From a meal suggestion',
+    );
+    await DayLogService.instance.addEntry(entry);
+    await DayLogService.instance.addMessage(
+      now,
+      ChatMessage(
+        id: 'm_${now.millisecondsSinceEpoch}_log',
+        timestamp: now,
+        role: 'caliana',
+        type: 'foodLog',
+        text: entry.name,
+        foodEntry: entry,
+      ),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+      backgroundColor: const Color(0xFF0F172A),
+      duration: const Duration(seconds: 2),
+      content: Text(
+        'Logged: ${entry.name} (${entry.calories} kcal)',
+        style: const TextStyle(
+            color: Colors.white, fontWeight: FontWeight.w600),
+      ),
+    ));
+    _scrollToBottom();
+  }
+
+  /// Save a suggested meal into the user's Recipes Sheet. Triggered
+  /// by the explicit Save button on each recipe card.
+  Future<void> _saveMealFromIdea(MealIdea idea) async {
+    HapticFeedback.lightImpact();
+    final now = DateTime.now();
+    await SavedMealsService.instance.save(
+      SavedMeal(
+        id: 'sm_${now.millisecondsSinceEpoch}_${idea.name.hashCode}',
+        savedAt: now,
+        name: idea.name,
+        calories: idea.calories,
+        proteinGrams: idea.protein,
+        carbsGrams: idea.carbs,
+        fatGrams: idea.fat,
+        ingredients: idea.ingredients,
+        steps: idea.steps,
+        recipeLink: idea.link,
+        recipeSource: idea.source,
+      ),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+      backgroundColor: const Color(0xFF0F172A),
+      duration: const Duration(seconds: 2),
+      content: Text(
+        'Saved ${idea.name} to your recipes.',
+        style: const TextStyle(
+            color: Colors.white, fontWeight: FontWeight.w600),
+      ),
+    ));
+  }
+
+  void _openFoodEditSheet(FoodEntry entry) {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+        ),
+        child: FoodEditSheet(
+          entry: entry,
+          onSave: (updated) async {
+            await DayLogService.instance
+                .updateEntry(entry.timestamp, updated);
+            if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+          },
+          onDelete: () async {
+            await DayLogService.instance
+                .removeEntry(entry.timestamp, entry.id);
+            if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+          },
+        ),
+      ),
+    );
   }
 
   void _confirmDeleteEntry(FoodEntry entry) {
