@@ -79,6 +79,25 @@ class DayLogService extends ChangeNotifier {
     return sum;
   }
 
+  /// Consecutive days (ending today OR yesterday) with at least one
+  /// entry. Today counts as part of the streak whether or not anything
+  /// is logged yet — we don't want to "break" a streak just because
+  /// they haven't eaten breakfast yet.
+  int get loggingStreak {
+    final now = DateTime.now();
+    int streak = 0;
+    final todayHasEntries = forDay(now).entries.isNotEmpty;
+    final start = todayHasEntries ? 0 : 1;
+    for (int i = start; i < 365; i++) {
+      final d = now.subtract(Duration(days: i));
+      if (forDay(d).entries.isEmpty) break;
+      streak++;
+    }
+    // If today has no entries yet, surface yesterday's streak so the
+    // user sees the number they're protecting.
+    return streak;
+  }
+
   // ---------------------------------------------------------------------------
   // Mutations
   // ---------------------------------------------------------------------------

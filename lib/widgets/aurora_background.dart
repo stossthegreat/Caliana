@@ -45,6 +45,24 @@ class _AuroraBackgroundState extends State<AuroraBackground>
         return Stack(
           children: [
             Container(color: AppColors.background),
+            // Top-down soft tint — adds depth so the background doesn't
+            // read as a flat sheet of beige under the cards.
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      AppColors.primary.withValues(alpha: 0.05),
+                      Colors.transparent,
+                      AppColors.accent.withValues(alpha: 0.03),
+                    ],
+                    stops: const [0.0, 0.6, 1.0],
+                  ),
+                ),
+              ),
+            ),
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -52,8 +70,8 @@ class _AuroraBackgroundState extends State<AuroraBackground>
                     center: Alignment(aX, aY),
                     radius: 1.4,
                     colors: [
-                      AppColors.primary.withValues(alpha: 0.08),
-                      AppColors.primary.withValues(alpha: 0.02),
+                      AppColors.primary.withValues(alpha: 0.16),
+                      AppColors.primary.withValues(alpha: 0.05),
                       Colors.transparent,
                     ],
                     stops: const [0.0, 0.35, 1.0],
@@ -68,8 +86,8 @@ class _AuroraBackgroundState extends State<AuroraBackground>
                     center: Alignment(bX, bY),
                     radius: 1.5,
                     colors: [
-                      AppColors.accent.withValues(alpha: 0.06),
-                      AppColors.accent.withValues(alpha: 0.015),
+                      AppColors.accent.withValues(alpha: 0.13),
+                      AppColors.accent.withValues(alpha: 0.04),
                       Colors.transparent,
                     ],
                     stops: const [0.0, 0.35, 1.0],

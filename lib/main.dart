@@ -65,13 +65,13 @@ void main() async {
     ]);
     debugPrint('✅ Caliana services loaded');
 
-    // Watch the day log — when the user crosses an overage threshold,
-    // this rebuilds tomorrow's plan in recovery mode automatically.
-    // The user logs reality; Caliana fixes the future.
+    // Watch the day log — when it crosses an overage threshold, this
+    // rebuilds tomorrow's plan in recovery mode automatically. The
+    // user logs reality; she fixes the future.
     RecoveryAutopilot.instance.start();
 
     // Configure RevenueCat in the background — fire-and-forget so a
-    // bad / missing API key never blocks the app from booting.
+    // missing/bad API key never blocks the app from booting.
     unawaited(RevenueCatService.instance.bootstrap());
 
     if (firebaseReady) {
@@ -86,10 +86,7 @@ void main() async {
       return const SizedBox.shrink();
     };
 
-    runApp(CalianaApp(
-      showOnboarding: !onboardingSeen,
-      firebaseReady: firebaseReady,
-    ));
+    runApp(CalianaApp(showOnboarding: !onboardingSeen));
   } catch (e, stack) {
     debugPrint('❌ CRITICAL INIT CRASH: $e\n$stack');
     runApp(_FailsafeApp(error: e, stack: stack));
@@ -98,12 +95,10 @@ void main() async {
 
 class CalianaApp extends StatelessWidget {
   final bool showOnboarding;
-  final bool firebaseReady;
 
   const CalianaApp({
     super.key,
     required this.showOnboarding,
-    required this.firebaseReady,
   });
 
   @override
@@ -120,13 +115,6 @@ class CalianaApp extends StatelessWidget {
       title: 'Caliana',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,
-      navigatorObservers: () {
-        if (!firebaseReady) return const <NavigatorObserver>[];
-        final observer = AnalyticsService.instance.observer;
-        return observer == null
-            ? const <NavigatorObserver>[]
-            : <NavigatorObserver>[observer];
-      }(),
       home: home,
     );
   }
@@ -157,10 +145,8 @@ class _OnboardingGate extends StatelessWidget {
   }
 }
 
-/// Apple 5.1.1(i) / 5.1.2(i) gate: shown after onboarding if the user has
-/// not yet granted permission to send data to OpenAI / ElevenLabs. The
-/// app cannot make AI-bound calls until consent is granted (or it falls
-/// back to local-only behaviour from CalianaService).
+/// Apple 5.1.1(i) / 5.1.2(i) gate: shown after onboarding if the user
+/// has not yet granted permission to send data to OpenAI / ElevenLabs.
 class _ConsentGate extends StatelessWidget {
   const _ConsentGate();
 

@@ -13,6 +13,7 @@ import { registerLogPhotoRoute } from './routes/log-photo.js';
 import { registerCalianaVoiceRoute } from './routes/caliana-voice.js';
 import { registerMealSuggestRoute } from './routes/meal-suggest.js';
 import { registerFridgeSuggestRoute } from './routes/fridge-suggest.js';
+import { registerPlanDayRoute } from './routes/plan-day.js';
 
 async function main(): Promise<void> {
   const app = Fastify({
@@ -82,6 +83,7 @@ async function main(): Promise<void> {
   await registerCalianaVoiceRoute(app); // ElevenLabs → audio/mpeg
   await registerMealSuggestRoute(app); // GPT-4o mini + Serper → meal ideas
   await registerFridgeSuggestRoute(app); // GPT-4o vision + Serper → fridge-aware ideas
+  await registerPlanDayRoute(app); // GPT-4o mini → 4-slot day plan
 
   // ---- Legacy recipe search (kept — Caliana can tap it for richer meal pulls) ----
   await registerSearchRoute(app);
@@ -99,6 +101,7 @@ async function main(): Promise<void> {
       'POST /api/caliana-voice',
       'POST /api/meal-suggest',
       'POST /api/fridge-suggest',
+      'POST /api/plan-day',
       'POST /api/search',
     ],
   }));

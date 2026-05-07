@@ -1,12 +1,15 @@
 import 'dart:async';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 import '../models/user_profile.dart';
 import '../services/user_profile_service.dart';
+import '../services/usage_service.dart';
 import '../services/analytics_service.dart';
-import '../widgets/aurora_background.dart';
+import '../widgets/character_card.dart';
+import 'paywall_screen.dart';
 
 /// Caliana's onboarding. 10 screens, ~90 sec.
 /// Captures everything needed to compute calorie + macro goals, plus
@@ -25,12 +28,6 @@ class OnboardingScreen extends StatefulWidget {
   static Future<void> markSeen() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_seenKey, true);
-  }
-
-  /// Used by Settings → Delete account so the next launch re-onboards.
-  static Future<void> markUnseen() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_seenKey);
   }
 
   @override
@@ -102,56 +99,88 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: AuroraBackground(
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(),
-              Expanded(
-                child: PageView(
-                  controller: _pc,
-                  physics: const NeverScrollableScrollPhysics(),
-                  onPageChanged: (i) => setState(() => _index = i),
-                  children: [
-                    _Welcome(onNext: _next),
-                    _Biometrics(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(),
+            Expanded(
+              child: PageView(
+                controller: _pc,
+                physics: const NeverScrollableScrollPhysics(),
+                onPageChanged: (i) => setState(() => _index = i),
+                children: [
+                  _FadeSlideIn(
+                    key: const ValueKey('welcome'),
+                    child: _Welcome(onNext: _next),
+                  ),
+                  _FadeSlideIn(
+                    key: ValueKey('bio_${_draft.hashCode}'),
+                    child: _Biometrics(
                       draft: _draft,
                       onUpdate: (p) => setState(() => _draft = p),
                       onNext: _next,
                     ),
-                    _Goal(
+                  ),
+                  _FadeSlideIn(
+                    key: const ValueKey('goal'),
+                    child: _Goal(
                       draft: _draft,
                       onUpdate: (p) => setState(() => _draft = p),
                       onNext: _next,
                     ),
-                    _Activity(
+                  ),
+                  _FadeSlideIn(
+                    key: const ValueKey('activity'),
+                    child: _Activity(
                       draft: _draft,
                       onUpdate: (p) => setState(() => _draft = p),
                       onNext: _next,
                     ),
-                    _Diet(
+                  ),
+                  _FadeSlideIn(
+                    key: const ValueKey('diet'),
+                    child: _Diet(
                       draft: _draft,
                       onUpdate: (p) => setState(() => _draft = p),
                       onNext: _next,
                     ),
-                    _Tone(
+                  ),
+                  _FadeSlideIn(
+                    key: const ValueKey('tone'),
+                    child: _Tone(
                       draft: _draft,
                       onUpdate: (p) => setState(() => _draft = p),
                       onNext: _next,
                     ),
-                    _Notifications(
+                  ),
+                  _FadeSlideIn(
+                    key: const ValueKey('notif'),
+                    child: _Notifications(
                       draft: _draft,
                       onUpdate: (p) => setState(() => _draft = p),
                       onNext: _next,
                     ),
-                    _PlanReveal(draft: _draft, onNext: _next),
-                    _SocialProof(onNext: _next),
-                    _SoftPaywall(onContinueFree: _finish, onSubscribe: _finish),
-                  ],
-                ),
+                  ),
+                  _FadeSlideIn(
+                    key: const ValueKey('plan'),
+                    child: _PlanReveal(draft: _draft, onNext: _next),
+                  ),
+                  _FadeSlideIn(
+                    key: const ValueKey('proof'),
+                    child: _SocialProof(onNext: _next),
+                  ),
+                  _FadeSlideIn(
+                    key: const ValueKey('paywall'),
+                    child: _SoftPaywall(
+                      onContinueFree: _finish,
+                      onSubscribe: _finish,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -159,22 +188,29 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
       child: Row(
         children: [
           if (_index > 0)
             GestureDetector(
               onTap: _back,
               child: Container(
-                width: 36,
-                height: 36,
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.06),
+                  color: Colors.white,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.10),
+                    color: AppColors.surfaceBorder,
                     width: 1,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: const Icon(
                   Icons.arrow_back_rounded,
@@ -184,7 +220,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             )
           else
-            const SizedBox(width: 36),
+            const SizedBox(width: 38),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -192,21 +228,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
                   value: (_index + 1) / 10,
-                  minHeight: 4,
-                  backgroundColor: Colors.white.withValues(alpha: 0.08),
-                  valueColor: const AlwaysStoppedAnimation(AppColors.accent),
+                  minHeight: 5,
+                  backgroundColor: AppColors.surfaceBorder,
+                  valueColor: const AlwaysStoppedAnimation(AppColors.primary),
                 ),
               ),
             ),
           ),
           SizedBox(
-            width: 36,
+            width: 38,
             child: Text(
               '${_index + 1}/10',
-              style: TextStyle(
-                fontSize: 11,
-                color: AppColors.textHint,
-                fontWeight: FontWeight.w700,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w800,
                 letterSpacing: 0.5,
               ),
             ),
@@ -220,9 +257,42 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 // ============================================================================
 // SCREEN 1 — Welcome
 // ============================================================================
-class _Welcome extends StatelessWidget {
+class _Welcome extends StatefulWidget {
   final VoidCallback onNext;
   const _Welcome({required this.onNext});
+
+  @override
+  State<_Welcome> createState() => _WelcomeState();
+}
+
+class _WelcomeState extends State<_Welcome> {
+  final AudioPlayer _intro = AudioPlayer();
+  bool _played = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Auto-play the ElevenLabs intro once after first frame.
+    // Fails silently if the asset isn't there yet.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _play());
+  }
+
+  @override
+  void dispose() {
+    _intro.dispose();
+    super.dispose();
+  }
+
+  Future<void> _play() async {
+    if (_played) return;
+    _played = true;
+    try {
+      await _intro.stop();
+      await _intro.play(AssetSource('audio/onboarding_intro.mp3'));
+    } catch (_) {
+      // Silent — the screen still works without audio.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -230,46 +300,49 @@ class _Welcome extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
       child: Column(
         children: [
-          Expanded(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Column(
-                children: [
-                  Image.asset(
-                    'assets/caliana.png',
-                    width: 220,
-                    height: 220,
-                    fit: BoxFit.contain,
-                  ),
-                  const SizedBox(height: 18),
-                  const Text(
-                    'Caliana',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 46,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
-                      letterSpacing: -1.6,
-                      height: 1,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Your AI nutrition coach.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textSecondary,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                ],
-              ),
+          const Spacer(flex: 2),
+          Image.asset(
+            'assets/caliana.png',
+            width: 220,
+            height: 220,
+            fit: BoxFit.contain,
+          ),
+          const SizedBox(height: 18),
+          const Text(
+            'Caliana',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 46,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+              letterSpacing: -1.6,
+              height: 1,
             ),
           ),
-          _PrimaryButton(label: 'Continue', onTap: onNext),
+          const SizedBox(height: 14),
+          const Text(
+            'Calories, but make it British.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Half sharp mate, half narrator quietly\njudging your third coffee.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.45,
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const Spacer(flex: 3),
+          _PrimaryButton(label: 'Continue', onTap: widget.onNext),
         ],
       ),
     );
@@ -307,87 +380,78 @@ class _BiometricsState extends State<_Biometrics> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _Title('A bit about you'),
-                  const _Subtitle(
-                      'Caliana needs the basics to calculate your numbers.'),
-                  const SizedBox(height: 24),
-                  Text('Sex',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textHint,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.6,
-                      )),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _SegButton(
-                          label: 'Female',
-                          selected: _sex == 'female',
-                          onTap: () => setState(() => _sex = 'female'),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _SegButton(
-                          label: 'Male',
-                          selected: _sex == 'male',
-                          onTap: () => setState(() => _sex = 'male'),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _SegButton(
-                          label: 'Other',
-                          selected: _sex == 'other',
-                          onTap: () => setState(() => _sex = 'other'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  _SliderRow(
-                    label: 'Age',
-                    value: _age.toDouble(),
-                    min: 14,
-                    max: 90,
-                    divisions: 76,
-                    display: '$_age yrs',
-                    onChanged: (v) => setState(() => _age = v.round()),
-                  ),
-                  const SizedBox(height: 16),
-                  _SliderRow(
-                    label: 'Height',
-                    value: _heightCm,
-                    min: 130,
-                    max: 220,
-                    divisions: 90,
-                    display: '${_heightCm.round()} cm',
-                    onChanged: (v) => setState(() => _heightCm = v),
-                  ),
-                  const SizedBox(height: 16),
-                  _SliderRow(
-                    label: 'Current weight',
-                    value: _weightKg,
-                    min: 35,
-                    max: 200,
-                    divisions: 165,
-                    display: '${_weightKg.toStringAsFixed(1)} kg',
-                    onChanged: (v) => setState(() => _weightKg = v),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              ),
+          const _Title('A bit about you'),
+          const _Subtitle(
+              'Caliana needs the basics to calculate your numbers.'),
+          const SizedBox(height: 24),
+          const Text(
+            'Sex',
+            style: TextStyle(
+              fontSize: 13,
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
             ),
           ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _SegButton(
+                  label: 'Female',
+                  selected: _sex == 'female',
+                  onTap: () => setState(() => _sex = 'female'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _SegButton(
+                  label: 'Male',
+                  selected: _sex == 'male',
+                  onTap: () => setState(() => _sex = 'male'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _SegButton(
+                  label: 'Other',
+                  selected: _sex == 'other',
+                  onTap: () => setState(() => _sex = 'other'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _SliderRow(
+            label: 'Age',
+            value: _age.toDouble(),
+            min: 14,
+            max: 90,
+            divisions: 76,
+            display: '$_age yrs',
+            onChanged: (v) => setState(() => _age = v.round()),
+          ),
+          const SizedBox(height: 16),
+          _SliderRow(
+            label: 'Height',
+            value: _heightCm,
+            min: 130,
+            max: 220,
+            divisions: 90,
+            display: '${_heightCm.round()} cm',
+            onChanged: (v) => setState(() => _heightCm = v),
+          ),
+          const SizedBox(height: 16),
+          _SliderRow(
+            label: 'Current weight',
+            value: _weightKg,
+            min: 35,
+            max: 200,
+            divisions: 165,
+            display: '${_weightKg.toStringAsFixed(1)} kg',
+            onChanged: (v) => setState(() => _weightKg = v),
+          ),
+          const Spacer(),
           _PrimaryButton(
             label: 'Continue',
             onTap: () {
@@ -441,89 +505,97 @@ class _GoalState extends State<_Goal> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _Title('What\'s the mission?'),
-                  const _Subtitle('Caliana shapes your day around this.'),
-                  const SizedBox(height: 24),
-                  _GoalCard(
-                    emoji: '⬇️',
-                    title: 'Lose weight',
-                    sub: 'Sustainable cut — about a pound a week',
-                    selected: _goal == 'lose',
-                    onTap: () => setState(() {
-                      _goal = 'lose';
-                      if (_target >= widget.draft.weightKg) {
-                        _target = (widget.draft.weightKg - 5).clamp(35, 200);
-                      }
-                    }),
+          const _Title('What\'s the mission?'),
+          const _Subtitle('Caliana shapes your day around this.'),
+          const SizedBox(height: 24),
+          _GoalCard(
+            icon: Icons.trending_down_rounded,
+            title: 'Lose weight',
+            sub: 'Sustainable cut — about a pound a week',
+            selected: _goal == 'lose',
+            onTap: () => setState(() {
+              _goal = 'lose';
+              if (_target >= widget.draft.weightKg) {
+                _target = (widget.draft.weightKg - 5).clamp(35, 200);
+              }
+            }),
+          ),
+          const SizedBox(height: 10),
+          _GoalCard(
+            icon: Icons.balance_rounded,
+            title: 'Maintain',
+            sub: 'Hold steady — eat at maintenance',
+            selected: _goal == 'maintain',
+            onTap: () => setState(() {
+              _goal = 'maintain';
+              _target = widget.draft.weightKg;
+            }),
+          ),
+          const SizedBox(height: 10),
+          _GoalCard(
+            icon: Icons.trending_up_rounded,
+            title: 'Gain weight',
+            sub: 'Lean bulk — slow, intentional gain',
+            selected: _goal == 'gain',
+            onTap: () => setState(() {
+              _goal = 'gain';
+              if (_target <= widget.draft.weightKg) {
+                _target = (widget.draft.weightKg + 5).clamp(35, 200);
+              }
+            }),
+          ),
+          if (_goal != 'maintain') ...[
+            const SizedBox(height: 22),
+            _SliderRow(
+              label: 'Target weight',
+              value: _target,
+              min: 35,
+              max: 200,
+              divisions: 165,
+              display: '${_target.toStringAsFixed(1)} kg',
+              onChanged: (v) => setState(() => _target = v),
+            ),
+            if (eta != null && delta.abs() > 0) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.primarySoft,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.20),
+                    width: 1,
                   ),
-                  const SizedBox(height: 10),
-                  _GoalCard(
-                    emoji: '⚖️',
-                    title: 'Maintain',
-                    sub: 'Hold steady — eat at maintenance',
-                    selected: _goal == 'maintain',
-                    onTap: () => setState(() {
-                      _goal = 'maintain';
-                      _target = widget.draft.weightKg;
-                    }),
-                  ),
-                  const SizedBox(height: 10),
-                  _GoalCard(
-                    emoji: '⬆️',
-                    title: 'Gain weight',
-                    sub: 'Lean bulk — slow, intentional gain',
-                    selected: _goal == 'gain',
-                    onTap: () => setState(() {
-                      _goal = 'gain';
-                      if (_target <= widget.draft.weightKg) {
-                        _target = (widget.draft.weightKg + 5).clamp(35, 200);
-                      }
-                    }),
-                  ),
-                  if (_goal != 'maintain') ...[
-                    const SizedBox(height: 22),
-                    _SliderRow(
-                      label: 'Target weight',
-                      value: _target,
-                      min: 35,
-                      max: 200,
-                      divisions: 165,
-                      display: '${_target.toStringAsFixed(1)} kg',
-                      onChanged: (v) => setState(() => _target = v),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.flag_rounded,
+                      color: AppColors.primary,
+                      size: 18,
                     ),
-                    if (eta != null && delta.abs() > 0) ...[
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                        decoration: GlassDecoration.coralCard(opacity: 0.05),
-                        child: Text(
-                          'Caliana reckons you\'ll hit it around '
-                          '${_monthName(eta.month)} ${eta.day}, ${eta.year}.',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w500,
-                            height: 1.4,
-                          ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Caliana reckons you\'ll hit it around '
+                        '${_monthName(eta.month)} ${eta.day}, ${eta.year}.',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                          height: 1.4,
                         ),
                       ),
-                    ],
+                    ),
                   ],
-                  const SizedBox(height: 16),
-                ],
+                ),
               ),
-            ),
-          ),
+            ],
+          ],
+          const Spacer(),
           _PrimaryButton(
             label: 'Continue',
             onTap: () {
@@ -576,32 +648,20 @@ class _ActivityState extends State<_Activity> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _Title('How active are you?'),
-                  const _Subtitle('Be honest — Caliana can tell.'),
-                  const SizedBox(height: 24),
-                  ..._levels.map((opt) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _GoalCard(
-                          emoji: opt['emoji']!,
-                          title: opt['title']!,
-                          sub: opt['sub']!,
-                          selected: _level == opt['value'],
-                          onTap: () =>
-                              setState(() => _level = opt['value']!),
-                        ),
-                      )),
-                  const SizedBox(height: 16),
-                ],
-              ),
-            ),
-          ),
+          const _Title('How active are you?'),
+          const _Subtitle('Be honest — Caliana can tell.'),
+          const SizedBox(height: 24),
+          ..._levels.map((opt) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _GoalCard(
+                  icon: opt.icon,
+                  title: opt.title,
+                  sub: opt.sub,
+                  selected: _level == opt.value,
+                  onTap: () => setState(() => _level = opt.value),
+                ),
+              )),
+          const Spacer(),
           _PrimaryButton(
             label: 'Continue',
             onTap: () {
@@ -614,32 +674,45 @@ class _ActivityState extends State<_Activity> {
     );
   }
 
-  static const _levels = [
-    {
-      'value': 'couch',
-      'emoji': '🛋️',
-      'title': 'Couch life',
-      'sub': 'Desk job, no real exercise',
-    },
-    {
-      'value': 'light',
-      'emoji': '🚶',
-      'title': 'Light',
-      'sub': 'Walk a bit, gym 1–2 times a week',
-    },
-    {
-      'value': 'active',
-      'emoji': '🏃',
-      'title': 'Active',
-      'sub': 'Train 3–5 times a week',
-    },
-    {
-      'value': 'athlete',
-      'emoji': '🏋️',
-      'title': 'Athlete',
-      'sub': 'Daily training, manual job, or both',
-    },
+  static const _levels = <_ActivityOption>[
+    _ActivityOption(
+      value: 'couch',
+      icon: Icons.weekend_rounded,
+      title: 'Couch life',
+      sub: 'Desk job, no real exercise',
+    ),
+    _ActivityOption(
+      value: 'light',
+      icon: Icons.directions_walk_rounded,
+      title: 'Light',
+      sub: 'Walk a bit, gym 1–2 times a week',
+    ),
+    _ActivityOption(
+      value: 'active',
+      icon: Icons.directions_run_rounded,
+      title: 'Active',
+      sub: 'Train 3–5 times a week',
+    ),
+    _ActivityOption(
+      value: 'athlete',
+      icon: Icons.fitness_center_rounded,
+      title: 'Athlete',
+      sub: 'Daily training, manual job, or both',
+    ),
   ];
+}
+
+class _ActivityOption {
+  final String value;
+  final IconData icon;
+  final String title;
+  final String sub;
+  const _ActivityOption({
+    required this.value,
+    required this.icon,
+    required this.title,
+    required this.sub,
+  });
 }
 
 // ============================================================================
@@ -679,55 +752,43 @@ class _DietState extends State<_Diet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _Title('Diet & allergies'),
-                  const _Subtitle(
-                      'So Caliana never suggests something you can\'t eat.'),
-                  const SizedBox(height: 18),
-                  Text('Diet', style: _labelStyle()),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _diets
-                        .map((d) => _PillChip(
-                              label: d == 'none' ? 'No restriction' : d,
-                              selected: _diet == d,
-                              onTap: () => setState(() => _diet = d),
-                            ))
-                        .toList(),
-                  ),
-                  const SizedBox(height: 22),
-                  Text('Allergies (multi)', style: _labelStyle()),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _common
-                        .map((a) => _PillChip(
-                              label: a,
-                              selected: _allergies.contains(a),
-                              onTap: () => setState(() {
-                                if (_allergies.contains(a)) {
-                                  _allergies.remove(a);
-                                } else {
-                                  _allergies.add(a);
-                                }
-                              }),
-                            ))
-                        .toList(),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              ),
-            ),
+          const _Title('Diet & allergies'),
+          const _Subtitle('So Caliana never suggests something you can\'t eat.'),
+          const SizedBox(height: 18),
+          Text('Diet', style: _labelStyle()),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _diets
+                .map((d) => _PillChip(
+                      label: d == 'none' ? 'No restriction' : d,
+                      selected: _diet == d,
+                      onTap: () => setState(() => _diet = d),
+                    ))
+                .toList(),
           ),
+          const SizedBox(height: 22),
+          Text('Allergies (multi)', style: _labelStyle()),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _common
+                .map((a) => _PillChip(
+                      label: a,
+                      selected: _allergies.contains(a),
+                      onTap: () => setState(() {
+                        if (_allergies.contains(a)) {
+                          _allergies.remove(a);
+                        } else {
+                          _allergies.add(a);
+                        }
+                      }),
+                    ))
+                .toList(),
+          ),
+          const Spacer(),
           _PrimaryButton(
             label: 'Continue',
             onTap: () {
@@ -743,10 +804,10 @@ class _DietState extends State<_Diet> {
     );
   }
 
-  TextStyle _labelStyle() => TextStyle(
+  TextStyle _labelStyle() => const TextStyle(
         fontSize: 13,
-        color: AppColors.textHint,
-        fontWeight: FontWeight.w700,
+        color: AppColors.textPrimary,
+        fontWeight: FontWeight.w800,
         letterSpacing: 0.6,
       );
 }
@@ -772,130 +833,97 @@ class _Tone extends StatefulWidget {
 class _ToneState extends State<_Tone> {
   late String _tone = widget.draft.tone;
   // Default to acknowledged so Continue is never trapped behind a hidden
-  // gate — the checkbox is informational, not a hard consent. App Store
-  // reviewers (and real users) shouldn't have to hunt for a checkbox to
-  // make the primary CTA work.
+  // gate. Apple reviewers and real users shouldn't have to find a
+  // checkbox to make the primary CTA work — the warning text stays
+  // as informational copy.
   late bool _ack = true;
 
-  static const _tones = [
-    {
-      'value': 'polite',
-      'emoji': '🤝',
-      'title': 'Polite',
-      'sub': '"Lovely choice — let\'s keep it light tonight."',
-    },
-    {
-      'value': 'cheeky',
-      'emoji': '😏',
-      'title': 'Cheeky',
-      'sub': '"Right, you\'ve absolutely demolished lunch — onwards."',
-    },
-    {
-      'value': 'savage',
-      'emoji': '🔥',
-      'title': 'Savage',
-      'sub': '"Third croissant. Bold. We\'re fixing this together."',
-    },
-  ];
+  static const _tones = ['polite', 'cheeky', 'savage'];
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      physics: const BouncingScrollPhysics(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Column(
+          const _Title('Pick your Caliana'),
+          const _Subtitle(
+              'Same character, three modes. Switch any time in Settings.'),
+          const SizedBox(height: 22),
+          ..._tones.map((value) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: CharacterCard(
+                  value: value,
+                  selected: _tone == value,
+                  onTap: () => setState(() => _tone = value),
+                ),
+              )),
+          const SizedBox(height: 14),
+          GestureDetector(
+            onTap: () => setState(() => _ack = !_ack),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _ack
+                      ? AppColors.primary
+                      : AppColors.surfaceBorder,
+                  width: _ack ? 1.4 : 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.shadow.withValues(alpha: 0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const _Title('Pick Caliana\'s tone'),
-                  const _Subtitle(
-                      'You can change this any time in Settings.'),
-                  const SizedBox(height: 22),
-                  ..._tones.map((opt) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _GoalCard(
-                          emoji: opt['emoji']!,
-                          title: opt['title']!,
-                          sub: opt['sub']!,
-                          selected: _tone == opt['value'],
-                          onTap: () =>
-                              setState(() => _tone = opt['value']!),
-                        ),
-                      )),
-                  const SizedBox(height: 14),
-                  GestureDetector(
-                    onTap: () => setState(() => _ack = !_ack),
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: _ack
-                              ? AppColors.primary
-                              : AppColors.surfaceBorder,
-                          width: _ack ? 1.4 : 1,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.shadow.withValues(alpha: 0.04),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+                  Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: _ack
+                          ? AppColors.primary
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: _ack
+                            ? AppColors.primary
+                            : AppColors.surfaceBorder,
+                        width: 1.5,
                       ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 22,
-                            height: 22,
-                            decoration: BoxDecoration(
-                              color: _ack
-                                  ? AppColors.primary
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: _ack
-                                    ? AppColors.primary
-                                    : AppColors.surfaceBorder,
-                                width: 1.5,
-                              ),
-                            ),
-                            child: _ack
-                                ? const Icon(Icons.check_rounded,
-                                    size: 16, color: Colors.white)
-                                : null,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'Caliana talks back. If you have a history of '
-                              'disordered eating, please choose Polite or use '
-                              'a different app. Caliana will never shame your '
-                              'body — only the choices.',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                height: 1.4,
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
+                    ),
+                    child: _ack
+                        ? const Icon(Icons.check_rounded,
+                            size: 16, color: Colors.white)
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Caliana talks back. If you have a history of disordered '
+                      'eating, please choose Polite or use a different app. '
+                      'Caliana will never shame your body — only the choices.',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
                 ],
               ),
             ),
           ),
+          const SizedBox(height: 22),
           _PrimaryButton(
             label: 'Continue',
             onTap: () {
@@ -906,6 +934,7 @@ class _ToneState extends State<_Tone> {
               widget.onNext();
             },
           ),
+          const SizedBox(height: 12),
         ],
       ),
     );
@@ -946,42 +975,30 @@ class _NotificationsState extends State<_Notifications> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _Title('When can Caliana ping?'),
-                  const _Subtitle(
-                      'Max one push a day. She\'s not Duolingo.'),
-                  const SizedBox(height: 22),
-                  ..._windows.map((w) {
-                    final h = w['hour'] as int;
-                    final selected = _hours.contains(h);
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _GoalCard(
-                        emoji: '🔔',
-                        title: w['label'] as String,
-                        sub: w['sub'] as String,
-                        selected: selected,
-                        onTap: () => setState(() {
-                          if (selected) {
-                            _hours.remove(h);
-                          } else {
-                            _hours.add(h);
-                          }
-                        }),
-                      ),
-                    );
-                  }),
-                  const SizedBox(height: 16),
-                ],
+          const _Title('When can Caliana ping?'),
+          const _Subtitle('Max one push a day. She\'s not Duolingo.'),
+          const SizedBox(height: 22),
+          ..._windows.map((w) {
+            final h = w['hour'] as int;
+            final selected = _hours.contains(h);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _GoalCard(
+                icon: Icons.notifications_active_rounded,
+                title: w['label'] as String,
+                sub: w['sub'] as String,
+                selected: selected,
+                onTap: () => setState(() {
+                  if (selected) {
+                    _hours.remove(h);
+                  } else {
+                    _hours.add(h);
+                  }
+                }),
               ),
-            ),
-          ),
+            );
+          }),
+          const Spacer(),
           _PrimaryButton(
             label: 'Continue',
             onTap: () {
@@ -1043,61 +1060,70 @@ class _PlanRevealState extends State<_PlanReveal> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _Title('Here\'s your plan'),
-                  const _Subtitle('Caliana ran the numbers.'),
-                  const SizedBox(height: 28),
-                  Center(
-                    child: Column(
-                      children: [
-                        Text(
-                          '$_shownKcal',
-                          style: const TextStyle(
-                            fontSize: 96,
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.accent,
-                            letterSpacing: -3,
-                            fontFeatures: [FontFeature.tabularFigures()],
-                          ),
-                        ),
-                        Text(
-                          'kcal per day',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textHint,
-                            letterSpacing: 1.4,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
+          const _Title('Here\'s your plan'),
+          const _Subtitle('Caliana ran the numbers.'),
+          const Spacer(),
+          Center(
+            child: Column(
+              children: [
+                ShaderMask(
+                  shaderCallback: (rect) => const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF5A8AFF), Color(0xFF1F4FE0)],
+                  ).createShader(rect),
+                  child: Text(
+                    '$_shownKcal',
+                    style: const TextStyle(
+                      fontSize: 96,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: -3,
+                      fontFeatures: [FontFeature.tabularFigures()],
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                    decoration: GlassDecoration.card(opacity: 0.05),
-                    child: Column(
-                      children: [
-                        _planRow('Protein', '${p.dailyProteinGrams} g',
-                            AppColors.macroProtein),
-                        _planRow('Carbs', '${p.dailyCarbsGrams} g',
-                            AppColors.macroCarbs),
-                        _planRow('Fat', '${p.dailyFatGrams} g',
-                            AppColors.macroFat),
-                      ],
-                    ),
+                ),
+                const Text(
+                  'kcal per day',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textPrimary,
+                    letterSpacing: 1.4,
+                    fontWeight: FontWeight.w800,
                   ),
-                  const SizedBox(height: 16),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
+          const SizedBox(height: 22),
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: AppColors.surfaceBorder,
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                _planRow('Protein', '${p.dailyProteinGrams} g',
+                    AppColors.macroProtein),
+                _planRow('Carbs', '${p.dailyCarbsGrams} g',
+                    AppColors.macroCarbs),
+                _planRow('Fat', '${p.dailyFatGrams} g', AppColors.macroFat),
+              ],
+            ),
+          ),
+          const Spacer(),
           _PrimaryButton(label: 'Looks good', onTap: widget.onNext),
         ],
       ),
@@ -1118,9 +1144,10 @@ class _PlanRevealState extends State<_PlanReveal> {
           Expanded(
             child: Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 14,
-                color: AppColors.textSecondary,
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -1128,7 +1155,7 @@ class _PlanRevealState extends State<_PlanReveal> {
             value,
             style: const TextStyle(
               fontSize: 16,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w900,
               color: AppColors.textPrimary,
               letterSpacing: -0.3,
             ),
@@ -1152,53 +1179,72 @@ class _SocialProof extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
       child: Column(
         children: [
-          Expanded(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const _Title('Caliana\'s deal with you'),
-                  const _Subtitle('Three things she promises.'),
-                  const SizedBox(height: 24),
-                  Center(
-                    child: Image.asset(
-                      'assets/caliana.png',
-                      width: 130,
-                      height: 130,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  _promise('💯', 'Honest billing',
-                      'Cancel in two taps. No tricks, no hidden weekly charges.'),
-                  const SizedBox(height: 10),
-                  _promise('🤝', 'No body shame',
-                      'She\'ll roast your choices, never your body. Pick Polite anytime.'),
-                  const SizedBox(height: 10),
-                  _promise('🛠️', 'Fix bad days',
-                      'Blow lunch? She rebuilds the next 1–3 days, not just nags you.'),
-                  const SizedBox(height: 16),
-                ],
-              ),
+          const _Title('Caliana\'s deal with you'),
+          const _Subtitle('Three things she promises.'),
+          const SizedBox(height: 24),
+          Center(
+            child: Image.asset(
+              'assets/caliana.png',
+              width: 130,
+              height: 130,
+              fit: BoxFit.contain,
             ),
           ),
+          const SizedBox(height: 18),
+          _promise(Icons.verified_rounded, 'Honest billing',
+              'Cancel in two taps. No tricks, no hidden weekly charges.'),
+          const SizedBox(height: 10),
+          _promise(Icons.favorite_rounded, 'No body shame',
+              'She\'ll roast your choices, never your body. Pick Polite anytime.'),
+          const SizedBox(height: 10),
+          _promise(Icons.auto_awesome_rounded, 'Fix bad days',
+              'Blow lunch? She rebuilds the next 1–3 days, not just nags you.'),
+          const Spacer(),
           _PrimaryButton(label: 'Show me', onTap: onNext),
         ],
       ),
     );
   }
 
-  Widget _promise(String emoji, String title, String body) {
+  Widget _promise(IconData icon, String title, String body) {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: GlassDecoration.card(opacity: 0.05),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.surfaceBorder, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 20)),
-          const SizedBox(width: 12),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF5A8AFF), Color(0xFF2F6BFF)],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.22),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: Colors.white, size: 20),
+          ),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1206,8 +1252,8 @@ class _SocialProof extends StatelessWidget {
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w900,
                     color: AppColors.textPrimary,
                     letterSpacing: -0.2,
                   ),
@@ -1215,9 +1261,10 @@ class _SocialProof extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   body,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w500,
                     height: 1.4,
                   ),
                 ),
@@ -1231,57 +1278,143 @@ class _SocialProof extends StatelessWidget {
 }
 
 // ============================================================================
-// SCREEN 10 — Soft paywall
+// SCREEN 10 — Soft paywall (the gift)
 // ============================================================================
-class _SoftPaywall extends StatelessWidget {
+class _SoftPaywall extends StatefulWidget {
   final VoidCallback onContinueFree;
   final VoidCallback onSubscribe;
 
   const _SoftPaywall({required this.onContinueFree, required this.onSubscribe});
 
   @override
+  State<_SoftPaywall> createState() => _SoftPaywallState();
+}
+
+class _SoftPaywallState extends State<_SoftPaywall>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  static const _giftBlue = Color(0xFF2F6BFF);
+  static const _giftBlueLight = Color(0xFF5A8AFF);
+
+  @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+      physics: const BouncingScrollPhysics(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _Title('Try Caliana Pro'),
-                  const _Subtitle('3 days free. Cancel any time, two taps.'),
-                  const SizedBox(height: 22),
-                  _feature('🤳', 'Unlimited photo logging',
-                      'Free tier: 1 a day'),
-                  _feature('🗣️', 'Voice replies (ElevenLabs)',
-                      'Hear Caliana out loud'),
-                  _feature('📅', 'Multi-day rebuild plans',
-                      'Fix a bad week, properly'),
-                  _feature('🎨', 'Sunday recap share-card',
-                      'Caliana wrap, exportable'),
-                  const SizedBox(height: 16),
+          // Gift hero — no grey, no emoji.
+          Center(
+            child: Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [_giftBlueLight, _giftBlue],
+                ),
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: _giftBlue.withValues(alpha: 0.35),
+                    blurRadius: 28,
+                    offset: const Offset(0, 12),
+                  ),
                 ],
+              ),
+              child: const Icon(
+                Icons.card_giftcard_rounded,
+                color: Colors.white,
+                size: 48,
               ),
             ),
           ),
-          _PrimaryButton(label: 'Start 3-day free trial', onTap: onSubscribe),
-          const SizedBox(height: 8),
-          GestureDetector(
-            onTap: onContinueFree,
-            child: Center(
+          const SizedBox(height: 22),
+          const Text(
+            'A gift from Caliana.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w900,
+              color: AppColors.textPrimary,
+              letterSpacing: -1.2,
+              height: 1.05,
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            '3 days of full access. Properly free —\nno card, no catch, no nonsense.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+              height: 1.45,
+              letterSpacing: -0.1,
+            ),
+          ),
+          const SizedBox(height: 26),
+          _animatedRow(0, Icons.camera_alt_rounded,
+              'Snap anything', 'She works out the calories.'),
+          _animatedRow(1, Icons.graphic_eq_rounded,
+              'Hear her voice', 'British, sharp, on demand.'),
+          _animatedRow(2, Icons.auto_awesome_rounded,
+              'She fixes bad days', 'Tomorrow rebuilds itself.'),
+          _animatedRow(3, Icons.restaurant_rounded,
+              'Real recipes', 'From the world\'s kitchens, scaled to your day.'),
+          const SizedBox(height: 28),
+          _PrimaryButton(
+            label: 'Claim my 3 days',
+            onTap: () async {
+              HapticFeedback.mediumImpact();
+              // Push the real paywall so live store prices show. The
+              // gift trial is already running locally regardless of
+              // what they pick — so finishing onboarding either way
+              // is fine.
+              final purchased = await Navigator.of(context).push<bool>(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      const PaywallScreen(triggerText: 'onboarding'),
+                ),
+              );
+              if (purchased == true) {
+                await UsageService.instance.setPro(true);
+              }
+              widget.onSubscribe();
+            },
+          ),
+          const SizedBox(height: 10),
+          Center(
+            child: GestureDetector(
+              onTap: widget.onContinueFree,
               child: Padding(
-                padding: const EdgeInsets.all(8.0),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 10),
                 child: Text(
-                  'Continue with the free tier',
+                  'Just take me in',
                   style: TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textHint,
-                    decoration: TextDecoration.underline,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                    letterSpacing: -0.1,
                   ),
                 ),
               ),
@@ -1292,13 +1425,53 @@ class _SoftPaywall extends StatelessWidget {
     );
   }
 
-  Widget _feature(String emoji, String title, String sub) {
+  Widget _animatedRow(int i, IconData icon, String title, String sub) {
+    final start = (i * 0.12).clamp(0.0, 1.0);
+    final end = (start + 0.55).clamp(0.0, 1.0);
+    final t = CurvedAnimation(
+      parent: _ctrl,
+      curve: Interval(start, end, curve: Curves.easeOutCubic),
+    );
+    return AnimatedBuilder(
+      animation: t,
+      builder: (_, __) {
+        return Opacity(
+          opacity: t.value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - t.value) * 14),
+            child: _featureRow(icon, title, sub),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _featureRow(IconData icon, String title, String sub) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 9),
       child: Row(
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 22)),
-          const SizedBox(width: 12),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [_giftBlueLight, _giftBlue],
+              ),
+              borderRadius: BorderRadius.circular(13),
+              boxShadow: [
+                BoxShadow(
+                  color: _giftBlue.withValues(alpha: 0.22),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: Colors.white, size: 22),
+          ),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1307,15 +1480,19 @@ class _SoftPaywall extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     fontSize: 15,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                     color: AppColors.textPrimary,
+                    letterSpacing: -0.2,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   sub,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textHint,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
+                    height: 1.35,
                   ),
                 ),
               ],
@@ -1338,11 +1515,11 @@ class _Title extends StatelessWidget {
     return Text(
       text,
       style: const TextStyle(
-        fontSize: 30,
+        fontSize: 34,
         fontWeight: FontWeight.w900,
         color: AppColors.textPrimary,
-        letterSpacing: -1,
-        height: 1.1,
+        letterSpacing: -1.2,
+        height: 1.05,
       ),
     );
   }
@@ -1354,13 +1531,15 @@ class _Subtitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.only(top: 10),
       child: Text(
         text,
-        style: TextStyle(
-          fontSize: 14,
-          color: AppColors.textSecondary,
+        style: const TextStyle(
+          fontSize: 15,
+          color: AppColors.textPrimary,
           height: 1.4,
+          fontWeight: FontWeight.w500,
+          letterSpacing: -0.1,
         ),
       ),
     );
@@ -1445,27 +1624,39 @@ class _SegButton extends StatelessWidget {
         onTap();
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        height: 50,
+        duration: const Duration(milliseconds: 220),
+        height: 52,
         decoration: BoxDecoration(
-          color: selected
-              ? AppColors.accent.withValues(alpha: 0.15)
-              : Colors.white.withValues(alpha: 0.05),
+          color: selected ? AppColors.primarySoft : Colors.white,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: selected
-                ? AppColors.accent.withValues(alpha: 0.5)
-                : Colors.white.withValues(alpha: 0.10),
-            width: selected ? 1.4 : 1,
+            color: selected ? AppColors.primary : AppColors.surfaceBorder,
+            width: selected ? 1.6 : 1,
           ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.18),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
         ),
         child: Center(
           child: Text(
             label,
             style: TextStyle(
               fontSize: 14,
-              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-              color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+              fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+              color: selected ? AppColors.primary : AppColors.textPrimary,
+              letterSpacing: -0.1,
             ),
           ),
         ),
@@ -1475,14 +1666,14 @@ class _SegButton extends StatelessWidget {
 }
 
 class _GoalCard extends StatelessWidget {
-  final String emoji;
+  final IconData icon;
   final String title;
   final String sub;
   final bool selected;
   final VoidCallback onTap;
 
   const _GoalCard({
-    required this.emoji,
+    required this.icon,
     required this.title,
     required this.sub,
     required this.selected,
@@ -1497,23 +1688,49 @@ class _GoalCard extends StatelessWidget {
         onTap();
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(16),
+        duration: const Duration(milliseconds: 220),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
         decoration: BoxDecoration(
-          color: selected
-              ? AppColors.accent.withValues(alpha: 0.12)
-              : Colors.white.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(16),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: selected
-                ? AppColors.accent.withValues(alpha: 0.5)
-                : Colors.white.withValues(alpha: 0.10),
-            width: selected ? 1.4 : 1,
+                ? AppColors.primary
+                : AppColors.surfaceBorder,
+            width: selected ? 1.8 : 1,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: selected
+                  ? AppColors.primary.withValues(alpha: 0.18)
+                  : Colors.black.withValues(alpha: 0.04),
+              blurRadius: selected ? 18 : 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 28)),
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF5A8AFF), Color(0xFF2F6BFF)],
+                ),
+                borderRadius: BorderRadius.circular(13),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.22),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Icon(icon, color: Colors.white, size: 22),
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -1531,18 +1748,34 @@ class _GoalCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     sub,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w500,
                       height: 1.3,
                     ),
                   ),
                 ],
               ),
             ),
-            if (selected)
-              const Icon(Icons.check_circle_rounded,
-                  color: AppColors.accent, size: 22),
+            const SizedBox(width: 8),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                color: selected ? AppColors.primary : Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected ? AppColors.primary : AppColors.surfaceBorder,
+                  width: 1.6,
+                ),
+              ),
+              child: selected
+                  ? const Icon(Icons.check_rounded,
+                      color: Colors.white, size: 16)
+                  : null,
+            ),
           ],
         ),
       ),
@@ -1568,26 +1801,32 @@ class _PillChip extends StatelessWidget {
         onTap();
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 220),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: selected
-              ? AppColors.accent.withValues(alpha: 0.18)
-              : Colors.white.withValues(alpha: 0.04),
+          color: selected ? AppColors.primary : Colors.white,
           borderRadius: BorderRadius.circular(50),
           border: Border.all(
-            color: selected
-                ? AppColors.accent.withValues(alpha: 0.5)
-                : Colors.white.withValues(alpha: 0.10),
-            width: selected ? 1.3 : 1,
+            color: selected ? AppColors.primary : AppColors.surfaceBorder,
+            width: 1.2,
           ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.28),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
         ),
         child: Text(
           label,
           style: TextStyle(
             fontSize: 13,
-            fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-            color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+            fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+            color: selected ? Colors.white : AppColors.textPrimary,
+            letterSpacing: -0.1,
           ),
         ),
       ),
@@ -1617,8 +1856,22 @@ class _SliderRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
-      decoration: GlassDecoration.card(opacity: 0.04, radius: 14),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.surfaceBorder,
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1627,10 +1880,10 @@ class _SliderRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 12,
-                    color: AppColors.textHint,
-                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
                     letterSpacing: 0.6,
                   ),
                 ),
@@ -1638,9 +1891,9 @@ class _SliderRow extends StatelessWidget {
               Text(
                 display,
                 style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.primary,
                   letterSpacing: -0.3,
                   fontFeatures: [FontFeature.tabularFigures()],
                 ),
@@ -1649,14 +1902,14 @@ class _SliderRow extends StatelessWidget {
           ),
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
-              trackHeight: 3,
+              trackHeight: 4,
               thumbShape: const RoundSliderThumbShape(
                 enabledThumbRadius: 10,
               ),
-              activeTrackColor: AppColors.accent,
-              inactiveTrackColor: Colors.white.withValues(alpha: 0.08),
-              thumbColor: AppColors.accent,
-              overlayColor: AppColors.accent.withValues(alpha: 0.15),
+              activeTrackColor: AppColors.primary,
+              inactiveTrackColor: AppColors.surfaceBorder,
+              thumbColor: AppColors.primary,
+              overlayColor: AppColors.primary.withValues(alpha: 0.15),
             ),
             child: Slider(
               value: value.clamp(min, max),
@@ -1668,6 +1921,59 @@ class _SliderRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Wraps every onboarding page with a soft fade + upward-slide entrance.
+/// Triggered by the `key` swap when PageView navigates between screens
+/// — so each screen lands with a polished animation instead of a jump.
+class _FadeSlideIn extends StatefulWidget {
+  final Widget child;
+  const _FadeSlideIn({super.key, required this.child});
+
+  @override
+  State<_FadeSlideIn> createState() => _FadeSlideInState();
+}
+
+class _FadeSlideInState extends State<_FadeSlideIn>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _t;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 480),
+    );
+    _t = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _ctrl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _t,
+      builder: (_, child) {
+        return Opacity(
+          opacity: _t.value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - _t.value) * 18),
+            child: child,
+          ),
+        );
+      },
+      child: widget.child,
     );
   }
 }
