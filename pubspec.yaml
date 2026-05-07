@@ -2,7 +2,7 @@ name: caliana
 description: "Caliana — your sassy British AI calorie coach. Snap, speak, sorted."
 publish_to: 'none'
 
-version: 3.2.0+57
+version: 3.2.0+60
 
 environment:
   sdk: ^3.8.0

@@ -139,6 +139,74 @@ class CalianaService {
   }
 
   // ---------------------------------------------------------------------------
+  // Whole-day plan generator — calls /api/plan-day. Returns 4 MealIdea slots
+  // (breakfast / lunch / snack / dinner) sized to the user's daily calorie
+  // and protein goals. The Plan tab uses this for Tomorrow Plan and the
+  // recovery rebuild flow.
+  //
+  // Args:
+  //   mode — 'normal' | 'recovery' | 'high_protein' | 'low_carb' | 'fat_loss'
+  //   targetKcalOverride — when set, generator targets this instead of the
+  //     profile goal (used by RecoveryAutopilot to absorb a today overage)
+  //   absorbingDeltaKcal — informs the agent how big today's overage was so
+  //     the generated copy can acknowledge it
+  // ---------------------------------------------------------------------------
+  Future<List<MealIdea>> generateDayPlan({
+    String mode = 'normal',
+    int? targetKcalOverride,
+    int absorbingDeltaKcal = 0,
+  }) async {
+    if (_baseUrl.isEmpty || !_aiAllowed) return const [];
+    final profile = UserProfileService.instance.profile;
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$_baseUrl/api/plan-day'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'dailyCalorieGoal': profile.dailyCalorieGoal,
+              'dailyProteinGoal': profile.dailyProteinGrams,
+              'userContext': profile.toAgentContext(),
+              'tone': profile.tone,
+              'mode': mode,
+              if (targetKcalOverride != null)
+                'targetKcalOverride': targetKcalOverride,
+              if (absorbingDeltaKcal > 0)
+                'absorbingDeltaKcal': absorbingDeltaKcal,
+            }),
+          )
+          .timeout(const Duration(seconds: 45));
+      if (res.statusCode != 200) {
+        debugPrint('plan-day ${res.statusCode}: ${res.body}');
+        return const [];
+      }
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final list = (data['slots'] as List? ?? const []);
+      return list.map((e) {
+        final m = e as Map<String, dynamic>;
+        final idea = MealIdea.fromJson(m);
+        // Stash the slot name in `description` so PlannedMeal can read
+        // it back when persisting (e.g. 'breakfast', 'dinner').
+        return MealIdea(
+          name: idea.name,
+          calories: idea.calories,
+          protein: idea.protein,
+          carbs: idea.carbs,
+          fat: idea.fat,
+          ingredients: idea.ingredients,
+          steps: idea.steps,
+          imageUrl: idea.imageUrl,
+          description: m['slot'] as String?,
+          servings: 1,
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('plan-day error: $e');
+      return const [];
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Fridge-aware meal suggestions — calls /api/fridge-suggest with a photo.
   // Vision identifies ingredients, then proposes 2-3 meals that use them
   // and fit the remaining calorie budget.
