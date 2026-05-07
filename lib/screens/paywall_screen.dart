@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
-import '../services/usage_service.dart';
 import '../services/analytics_service.dart';
+import '../services/revenuecat_service.dart';
 import '../widgets/aurora_background.dart';
 
-/// Caliana Pro paywall.
-/// Blue throughout. App Store-compliant disclosures under the CTA.
+/// Caliana Pro paywall — one static page.
+///
+/// Whole sell fits on a single screen: hero, four feature rows, two
+/// identical price cards (monthly + annual), CTA, and a small fixed-
+/// height inner-scrollable area for Apple's required disclosure and
+/// legal links. Nothing else scrolls.
 class PaywallScreen extends StatefulWidget {
   final String? triggerText;
   const PaywallScreen({super.key, this.triggerText});
@@ -16,21 +21,127 @@ class PaywallScreen extends StatefulWidget {
   State<PaywallScreen> createState() => _PaywallScreenState();
 }
 
-class _PaywallScreenState extends State<PaywallScreen> {
-  bool _showClose = false;
-  bool _annual = true;
+class _PaywallScreenState extends State<PaywallScreen>
+    with SingleTickerProviderStateMixin {
+  static const _termsUrl =
+      'https://stossthegreat.github.io/Caliana/terms.html';
+  static const _privacyUrl =
+      'https://stossthegreat.github.io/Caliana/privacy.html';
+  static const _deleteUrl =
+      'https://stossthegreat.github.io/Caliana/delete-account.html';
 
-  // App Store legal links — replace with real ones when published.
-  static const _termsUrl = 'https://stossthegreat.github.io/Caliana/terms.html';
-  static const _privacyUrl = 'https://stossthegreat.github.io/Caliana/privacy.html';
+  bool _showClose = false;
+  bool _busy = false;
+  String? _error;
+
+  Package? _monthly;
+  Package? _annual;
+  Package? _selected;
+
+  late final AnimationController _featuresCtrl;
 
   @override
   void initState() {
     super.initState();
     AnalyticsService.instance.logPaywallView(widget.triggerText ?? 'manual');
+    _featuresCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..forward();
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) setState(() => _showClose = true);
     });
+    _loadOffering();
+  }
+
+  @override
+  void dispose() {
+    _featuresCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadOffering() async {
+    final svc = RevenueCatService.instance;
+    if (!svc.ready) {
+      await svc.bootstrap();
+    }
+    if (svc.currentOffering == null) {
+      await svc.refreshOffering();
+    }
+    final offering = svc.currentOffering;
+    if (offering == null || !mounted) return;
+    setState(() {
+      _monthly = offering.monthly ??
+          offering.availablePackages
+              .where((p) => p.packageType == PackageType.monthly)
+              .cast<Package?>()
+              .firstWhere((_) => true, orElse: () => null);
+      _annual = offering.annual ??
+          offering.availablePackages
+              .where((p) => p.packageType == PackageType.annual)
+              .cast<Package?>()
+              .firstWhere((_) => true, orElse: () => null);
+      _selected = _annual ?? _monthly;
+    });
+  }
+
+  bool _hasIntroTrial(Package? p) {
+    if (p == null) return false;
+    return p.storeProduct.introductoryPrice != null;
+  }
+
+  /// Apple 3.1.2(c) compliance: CTA is the verb only — no trial, no
+  /// price, no introductory copy. The billed amount lives in a hero
+  /// line directly ABOVE this button so it's the most conspicuous
+  /// pricing element on the page.
+  String get _ctaLabel {
+    if (_busy) return 'Working…';
+    return 'Subscribe';
+  }
+
+  /// Big billed-amount hero shown above the CTA. Always reads as a
+  /// price + period — never a trial duration.
+  String get _billedAmountHero {
+    final pkg = _selected;
+    if (pkg == null) {
+      return _annualSelected ? '£29.99 per year' : '£4.99 per month';
+    }
+    final price = pkg.storeProduct.priceString;
+    if (pkg.packageType == PackageType.annual) return '$price per year';
+    if (pkg.packageType == PackageType.monthly) return '$price per month';
+    return price;
+  }
+
+  bool get _annualSelected => _selected == _annual;
+
+  String _selectedDisclosure() {
+    final pkg = _selected;
+    if (pkg == null) {
+      return '7-day free trial on the annual plan, then a recurring '
+          'subscription. Auto-renews unless cancelled at least 24 hours '
+          'before the period ends. Cancel any time in your store account.';
+    }
+    final price = pkg.storeProduct.priceString;
+    if (_hasIntroTrial(pkg)) {
+      return '7-day free trial, then $price billed every year. '
+          "You won't be charged during the trial — cancel any time in "
+          "your store account at least 24 hours before the trial ends "
+          "and you'll pay nothing. After the trial, the subscription "
+          'auto-renews yearly until you cancel.';
+    }
+    if (pkg.packageType == PackageType.monthly) {
+      return 'Auto-renewing subscription, $price billed every month. '
+          'No free trial on monthly — switch to annual for the 7-day '
+          'trial. Cancel any time in your store account at least 24 '
+          'hours before the period ends.';
+    }
+    if (pkg.packageType == PackageType.annual) {
+      return 'Auto-renewing subscription, $price billed every year. '
+          'Renews automatically unless cancelled at least 24 hours '
+          'before the period ends. Cancel any time in your store account.';
+    }
+    return 'Auto-renewing subscription. Cancel any time in your store '
+        'account settings.';
   }
 
   @override
@@ -38,298 +149,50 @@ class _PaywallScreenState extends State<PaywallScreen> {
     return Scaffold(
       body: AuroraBackground(
         child: SafeArea(
-          // Apple 4.0.0 fix: wrap in scroll view so legal links + CTA never
-          // get cut off on shorter screens (iPad Air 11" was the offender).
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Close (after 2s)
-                Align(
-                  alignment: Alignment.topRight,
-                  child: AnimatedOpacity(
-                    opacity: _showClose ? 1.0 : 0.0,
-                    duration: const Duration(milliseconds: 400),
-                    child: GestureDetector(
-                      onTap: _showClose ? () => Navigator.pop(context) : null,
-                      child: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AppColors.surfaceBorder,
-                            width: 1,
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.close_rounded,
-                          color: AppColors.textPrimary,
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Caliana with BLUE halo
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Container(
-                      width: 130,
-                      height: 130,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.30),
-                            blurRadius: 50,
-                            spreadRadius: 6,
-                          ),
-                        ],
-                      ),
-                    ),
-                    Image.asset(
-                      'assets/caliana.png',
-                      width: 140,
-                      height: 140,
-                      fit: BoxFit.contain,
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 14),
-                const Text(
-                  'Caliana Pro',
-                  style: TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.textPrimary,
-                    letterSpacing: -1,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Unlock everything she can do.',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textSecondary,
-                    letterSpacing: -0.2,
-                  ),
-                ),
+                _topBar(),
                 const SizedBox(height: 6),
-
-                if (widget.triggerText != null)
-                  Container(
-                    margin: const EdgeInsets.only(top: 6),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 7,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primarySoft,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      widget.triggerText!,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-
-                const SizedBox(height: 22),
-                _feature(
-                    Icons.camera_alt_rounded, 'Unlimited photo logging'),
-                const SizedBox(height: 12),
-                _feature(
-                    Icons.record_voice_over_rounded, 'Caliana speaks back'),
-                const SizedBox(height: 12),
-                _feature(
-                    Icons.calendar_view_week_rounded,
-                    'Multi-day rebuild plans'),
-                const SizedBox(height: 12),
-                _feature(Icons.menu_book_rounded, 'Save every meal she suggests'),
-
-                const SizedBox(height: 28),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: _priceCard(
-                        label: 'Monthly',
-                        price: '\$5.99',
-                        sub: '/month',
-                        isSelected: !_annual,
-                        onTap: () => setState(() => _annual = false),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _priceCard(
-                        label: 'Annual',
-                        price: '\$39.99',
-                        sub: '/year',
-                        isSelected: _annual,
-                        onTap: () => setState(() => _annual = true),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 22),
-
-                // ───────────────────────────────────────────────────────
-                //  PRIMARY BILLED-AMOUNT BLOCK (Apple 3.1.2(c) compliance)
-                // ───────────────────────────────────────────────────────
-                // Apple's 3.1.2(c) explicitly requires that the BILLED
-                // AMOUNT be the most clear and conspicuous pricing element.
-                // We show it once as a large hero line directly above the
-                // CTA so there's zero ambiguity for the reviewer or user.
+                _hero(),
+                const SizedBox(height: 14),
+                _features(),
+                const Spacer(),
+                _priceRow(),
+                const SizedBox(height: 14),
+                // Apple 3.1.2(c) BILLED-AMOUNT HERO. The billed amount
+                // must be the most clear and conspicuous pricing element
+                // on the page. Centred, 26pt 900-weight, directly above
+                // the CTA so it's impossible to miss.
                 Text(
-                  _annual ? '\$39.99 per year' : '\$5.99 per month',
+                  _billedAmountHero,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    fontSize: 28,
+                    fontSize: 26,
                     fontWeight: FontWeight.w900,
                     color: AppColors.textPrimary,
-                    letterSpacing: -0.6,
+                    letterSpacing: -0.5,
                     height: 1.05,
                   ),
                 ),
-                const SizedBox(height: 4),
-                // Subordinate billing-cycle clarifier in textSecondary.
+                const SizedBox(height: 2),
                 Text(
-                  _annual
+                  _annualSelected
                       ? 'Auto-renewing subscription billed annually'
                       : 'Auto-renewing subscription billed monthly',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w500,
                     color: AppColors.textSecondary,
-                    letterSpacing: -0.1,
                   ),
                 ),
-
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  height: 58,
-                  child: GestureDetector(
-                    onTap: () async {
-                      HapticFeedback.mediumImpact();
-                      AnalyticsService.instance
-                          .logPaywallSubscribeAttempt(_annual);
-                      // TODO: wire RevenueCat. For now flips Pro=true.
-                      await UsageService.instance.setPro(true);
-                      if (!context.mounted) return;
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text(
-                            "You're in. Caliana's yours.",
-                          ),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          backgroundColor: AppColors.backgroundElevated,
-                        ),
-                      );
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Color(0xFF5A8AFF),
-                            Color(0xFF2F6BFF),
-                            Color(0xFF1F4FE0),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.40),
-                            blurRadius: 24,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      // Apple 3.1.2(c) compliance: CTA action verb only — no
-                      // trial copy, no discount copy. The billed amount is
-                      // the conspicuous element directly above this button.
-                      child: const Center(
-                        child: Text(
-                          'Subscribe',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // ───────────────────────────────────────────────────────
-                //  AUTO-RENEW DISCLOSURE (Apple 3.1.2(c) compliance)
-                // ───────────────────────────────────────────────────────
-                // Required disclosure under the CTA. Mentions:
-                //   • Subscription length and price (clear up-front)
-                //   • Free trial duration and what gets billed afterward
-                //   • Auto-renewal terms
-                //   • Cancellation method (App Store account settings)
-                // Subordinate to the billed-amount block above.
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Text(
-                    _annual
-                        ? 'Caliana Pro — 1 year, \$39.99 USD. Includes a '
-                            '7-day free trial for new subscribers; you will '
-                            'be charged \$39.99 USD when the 7-day free '
-                            'trial ends. Subscription auto-renews at '
-                            '\$39.99 USD per year unless cancelled at least '
-                            '24 hours before the end of the current period. '
-                            'Manage or cancel any time in your App Store '
-                            'account settings.'
-                        : 'Caliana Pro — 1 month, \$5.99 USD. Subscription '
-                            'auto-renews at \$5.99 USD per month unless '
-                            'cancelled at least 24 hours before the end of '
-                            'the current period. Manage or cancel any time '
-                            'in your App Store account settings.',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      height: 1.45,
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-
                 const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _legalLink('Restore purchase', _restorePurchase),
-                    _dot(),
-                    _legalLink('Terms', () => _openUrl(_termsUrl)),
-                    _dot(),
-                    _legalLink('Privacy', () => _openUrl(_privacyUrl)),
-                  ],
-                ),
+                _cta(),
+                const SizedBox(height: 8),
+                _legalArea(),
               ],
             ),
           ),
@@ -338,121 +201,247 @@ class _PaywallScreenState extends State<PaywallScreen> {
     );
   }
 
-  Widget _feature(IconData icon, String text) {
-    return Row(
-      children: [
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: AppColors.primarySoft,
-            borderRadius: BorderRadius.circular(11),
-            border: Border.all(
-              color: AppColors.primary.withValues(alpha: 0.30),
-              width: 1,
+  Widget _topBar() {
+    return SizedBox(
+      height: 32,
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: AnimatedOpacity(
+          opacity: _showClose ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 400),
+          child: GestureDetector(
+            onTap: _showClose ? () => Navigator.pop(context) : null,
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.surfaceBorder, width: 1),
+              ),
+              child: const Icon(
+                Icons.close_rounded,
+                color: AppColors.textPrimary,
+                size: 16,
+              ),
             ),
           ),
-          child: Icon(icon, color: AppColors.primary, size: 20),
         ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-              letterSpacing: -0.2,
-            ),
+      ),
+    );
+  }
+
+  Widget _hero() {
+    return Column(
+      children: [
+        Image.asset(
+          'assets/caliana.png',
+          width: 84,
+          height: 84,
+          fit: BoxFit.contain,
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Caliana Pro',
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w900,
+            color: AppColors.textPrimary,
+            letterSpacing: -1.0,
+            height: 1,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Unlimited everything. Annual: 7 days free.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13.5,
+            height: 1.3,
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.1,
           ),
         ),
       ],
     );
   }
 
+  Widget _features() {
+    const items = [
+      _FeatureSpec(
+        icon: Icons.all_inclusive_rounded,
+        title: 'Unlimited everything',
+        sub: 'Photos, voice, recipes — no caps.',
+      ),
+      _FeatureSpec(
+        icon: Icons.auto_awesome_rounded,
+        title: 'She fixes bad days',
+        sub: 'Tomorrow rebuilds itself when today goes off.',
+      ),
+      _FeatureSpec(
+        icon: Icons.record_voice_over_rounded,
+        title: 'British voice replies',
+        sub: 'Hear Caliana out loud, on demand.',
+      ),
+      _FeatureSpec(
+        icon: Icons.bolt_rounded,
+        title: 'Priority models',
+        sub: 'GPT-4o vision, Whisper, the lot.',
+      ),
+    ];
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < items.length; i++) ...[
+          if (i > 0) const SizedBox(height: 6),
+          _AnimatedFeatureRow(
+            spec: items[i],
+            controller: _featuresCtrl,
+            startAt: i * 0.16,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _priceRow() {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: _priceCard(
+              package: _monthly,
+              label: 'MONTHLY',
+              priceFallback: '£4.99',
+              subFallback: '/mo',
+              isSelected: _selected == _monthly && _monthly != null,
+              isPlaceholder: _monthly == null,
+              onTap: _monthly == null
+                  ? null
+                  : () => setState(() => _selected = _monthly),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _priceCard(
+              package: _annual,
+              label: 'ANNUAL',
+              priceFallback: '£29.99',
+              subFallback: '/yr',
+              isSelected: _selected == _annual && _annual != null,
+              isPlaceholder: _annual == null,
+              isHighlight: true,
+              onTap: _annual == null
+                  ? null
+                  : () => setState(() => _selected = _annual),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _priceCard({
+    required Package? package,
     required String label,
-    required String price,
-    required String sub,
+    required String priceFallback,
+    required String subFallback,
     required bool isSelected,
-    required VoidCallback onTap,
+    required bool isPlaceholder,
+    bool isHighlight = false,
+    required VoidCallback? onTap,
   }) {
-    // Plan-selector card. Apple 3.1.2(c): no trial / discount / "save"
-    // copy lives in this card — only the plan name and the billed
-    // amount. Trial info is disclosed once, in the dedicated
-    // disclosure paragraph below the CTA.
+    final priceText = package?.storeProduct.priceString ?? priceFallback;
     return GestureDetector(
-      onTap: () {
-        onTap();
-        HapticFeedback.selectionClick();
-      },
+      onTap: onTap == null
+          ? null
+          : () {
+              HapticFeedback.selectionClick();
+              onTap();
+            },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        height: 100,
-        padding: const EdgeInsets.all(14),
+        duration: const Duration(milliseconds: 220),
+        height: 116,
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primarySoft : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.surfaceBorder,
-            width: isSelected ? 1.6 : 1,
+            color: isSelected
+                ? AppColors.primary
+                : (isHighlight
+                    ? AppColors.primary.withValues(alpha: 0.30)
+                    : AppColors.surfaceBorder),
+            width: isSelected ? 1.8 : (isHighlight ? 1.2 : 1),
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.18),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
+                    color: AppColors.primary.withValues(alpha: 0.22),
+                    blurRadius: 18,
+                    offset: const Offset(0, 6),
                   ),
                 ]
-              : [
-                  BoxShadow(
-                    color: AppColors.shadow.withValues(alpha: 0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+              : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
               label,
               style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.4,
-                color: isSelected
-                    ? AppColors.primary
-                    : AppColors.textSecondary,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.4,
+                color:
+                    isSelected ? AppColors.primary : AppColors.textSecondary,
               ),
             ),
-            const Spacer(),
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  price,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.textPrimary,
-                    letterSpacing: -0.3,
+                Flexible(
+                  child: Text(
+                    priceText,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: isPlaceholder
+                          ? AppColors.textHint
+                          : AppColors.textPrimary,
+                      letterSpacing: -0.5,
+                      height: 1,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 3),
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
+                  padding: const EdgeInsets.only(bottom: 2),
                   child: Text(
-                    sub,
+                    subFallback,
                     style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textHint,
                     ),
                   ),
                 ),
               ],
+            ),
+            // Apple 3.1.2(c): no discount/save/trial badge here. The
+            // billed amount above is the only conspicuous pricing
+            // element; nothing should compete with it.
+            const SizedBox(
+              height: 4,
+              child: Text(
+                '',
+                style: TextStyle(fontSize: 9),
+              ),
             ),
           ],
         ),
@@ -460,16 +449,199 @@ class _PaywallScreenState extends State<PaywallScreen> {
     );
   }
 
+  Widget _cta() {
+    final canBuy = _selected != null && !_busy;
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: GestureDetector(
+        onTap: canBuy ? _purchase : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            gradient: canBuy
+                ? const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFF5A8AFF),
+                      Color(0xFF2F6BFF),
+                      Color(0xFF1F4FE0),
+                    ],
+                  )
+                : null,
+            color: canBuy ? null : Colors.grey.shade300,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: canBuy
+                ? [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.40),
+                      blurRadius: 22,
+                      offset: const Offset(0, 6),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Center(
+            child: _busy
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      color: Colors.white,
+                    ),
+                  )
+                : Text(
+                    _ctaLabel,
+                    style: TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w900,
+                      color: canBuy ? Colors.white : AppColors.textHint,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Tiny scroll area at the bottom — exists only so the Apple-required
+  /// auto-renew disclosure and legal links can be read without bloating
+  /// the page above. Capped at 78pt.
+  Widget _legalArea() {
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 78),
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Column(
+          children: [
+            Text(
+              _selectedDisclosure(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 10.5,
+                height: 1.4,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Wrap(
+              alignment: WrapAlignment.center,
+              children: [
+                _legalLink('Restore', _restorePurchase),
+                _dot(),
+                _legalLink('Terms', () => _openUrl(_termsUrl)),
+                _dot(),
+                _legalLink('Privacy', () => _openUrl(_privacyUrl)),
+                _dot(),
+                _legalLink('Delete', () => _openUrl(_deleteUrl)),
+              ],
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.accent,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _purchase() async {
+    final pkg = _selected;
+    if (pkg == null) return;
+    HapticFeedback.mediumImpact();
+    AnalyticsService.instance
+        .logPaywallSubscribeAttempt(pkg.packageType == PackageType.annual);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final ok = await RevenueCatService.instance.purchase(pkg);
+      if (!mounted) return;
+      if (ok) {
+        Navigator.pop(context, true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text("You're in. Caliana's yours."),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            backgroundColor: AppColors.backgroundElevated,
+          ),
+        );
+      } else {
+        setState(() => _busy = false);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = 'Purchase failed: $e';
+      });
+    }
+  }
+
+  Future<void> _restorePurchase() async {
+    HapticFeedback.lightImpact();
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final restored = await RevenueCatService.instance.restore();
+      if (!mounted) return;
+      setState(() => _busy = false);
+      if (restored) {
+        Navigator.pop(context, true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Restored. Caliana Pro is back on.')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Nothing to restore on this account.")),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = 'Restore failed: $e';
+      });
+    }
+  }
+
+  Future<void> _openUrl(String url) async {
+    HapticFeedback.lightImpact();
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   Widget _legalLink(String text, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
         child: Text(
           text,
           style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
             color: AppColors.textSecondary,
             decoration: TextDecoration.underline,
             decorationColor: AppColors.textSecondary,
@@ -480,34 +652,118 @@ class _PaywallScreenState extends State<PaywallScreen> {
   }
 
   Widget _dot() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 1),
       child: Text(
         '·',
-        style: TextStyle(
-          fontSize: 13,
-          color: AppColors.textHint,
+        style: TextStyle(fontSize: 12, color: AppColors.textHint),
+      ),
+    );
+  }
+}
+
+class _FeatureSpec {
+  final IconData icon;
+  final String title;
+  final String sub;
+  const _FeatureSpec({
+    required this.icon,
+    required this.title,
+    required this.sub,
+  });
+}
+
+/// Compact feature row — gradient icon tile + title + one-line sub.
+/// No card chrome (the old version was eating vertical space). Fades
+/// + slides in on a staggered offset of the parent controller.
+class _AnimatedFeatureRow extends StatelessWidget {
+  final _FeatureSpec spec;
+  final AnimationController controller;
+  final double startAt;
+  const _AnimatedFeatureRow({
+    required this.spec,
+    required this.controller,
+    required this.startAt,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final curve = CurvedAnimation(
+      parent: controller,
+      curve: Interval(
+        startAt.clamp(0.0, 1.0),
+        (startAt + 0.5).clamp(0.0, 1.0),
+        curve: Curves.easeOutCubic,
+      ),
+    );
+    return AnimatedBuilder(
+      animation: curve,
+      builder: (context, child) {
+        return Opacity(
+          opacity: curve.value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - curve.value) * 10),
+            child: child,
+          ),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF5A8AFF), Color(0xFF2F6BFF)],
+                ),
+                borderRadius: BorderRadius.circular(11),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.22),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Icon(spec.icon, color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    spec.title,
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  Text(
+                    spec.sub,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w500,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
-  }
-
-  Future<void> _restorePurchase() async {
-    HapticFeedback.lightImpact();
-    // TODO: restore purchases via RevenueCat
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Restore: connect RevenueCat to enable.'),
-      ),
-    );
-  }
-
-  Future<void> _openUrl(String url) async {
-    HapticFeedback.lightImpact();
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
   }
 }

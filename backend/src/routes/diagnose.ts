@@ -12,6 +12,7 @@ export async function registerDiagnoseRoute(app: FastifyInstance): Promise<void>
   app.get('/api/diagnose', async () => {
     const checks: Record<string, unknown> = {
       openai: await checkOpenAI(),
+      elevenlabs: await checkElevenLabs(),
     };
 
     if (config.braveApiKey) {
@@ -35,6 +36,61 @@ export async function registerDiagnoseRoute(app: FastifyInstance): Promise<void>
       timestamp: new Date().toISOString(),
     };
   });
+}
+
+async function checkElevenLabs(): Promise<{
+  ok: boolean;
+  error?: string;
+  latencyMs?: number;
+  voiceIdSet?: boolean;
+  perToneVoicesSet?: { polite: boolean; cheeky: boolean; savage: boolean };
+}> {
+  if (!config.elevenLabsApiKey) {
+    return {
+      ok: false,
+      error:
+        'ELEVENLABS_API_KEY not set. Add it to Railway -> Caliana service -> Variables.',
+    };
+  }
+
+  const started = Date.now();
+  try {
+    // Hit /v1/voices — auth check that doesn't burn synthesis credits.
+    const response = await fetch('https://api.elevenlabs.io/v1/voices', {
+      headers: { 'xi-api-key': config.elevenLabsApiKey },
+    });
+    const latency = Date.now() - started;
+
+    if (response.ok) {
+      return {
+        ok: true,
+        latencyMs: latency,
+        voiceIdSet: !!config.elevenLabsVoiceId,
+        perToneVoicesSet: {
+          polite: !!config.elevenLabsVoiceIdPolite,
+          cheeky: !!config.elevenLabsVoiceIdCheeky,
+          savage: !!config.elevenLabsVoiceIdSavage,
+        },
+      };
+    }
+
+    const body = await response.text().catch(() => '');
+    let friendly = `ElevenLabs ${response.status}: ${body.slice(0, 200)}`;
+    if (response.status === 401) {
+      friendly =
+        'ElevenLabs API key is invalid (401). Get a fresh key at elevenlabs.io -> Profile -> API Keys, paste it as ELEVENLABS_API_KEY in Railway, then click "Redeploy" on the service.';
+    } else if (response.status === 429) {
+      friendly =
+        'ElevenLabs rate limit hit (429). Either you\'re out of credits or you\'re hammering the API.';
+    }
+    return { ok: false, error: friendly, latencyMs: latency };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+      latencyMs: Date.now() - started,
+    };
+  }
 }
 
 async function checkOpenAI(): Promise<{ ok: boolean; error?: string; latencyMs?: number }> {

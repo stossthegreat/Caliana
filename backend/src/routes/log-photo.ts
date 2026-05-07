@@ -31,6 +31,14 @@ export async function registerLogPhotoRoute(app: FastifyInstance): Promise<void>
         return reply.status(400).send({ error: 'photo file required' });
       }
 
+      // Log image size so we can rule out "image is empty/tiny" when
+      // vision returns wrong estimates. A real food photo from a phone
+      // is typically 100-500 KB.
+      req.log.info(
+        { bytes: imageBuffer.length, mimetype },
+        'log-photo: image received',
+      );
+
       const dataUrl = `data:${mimetype};base64,${imageBuffer.toString('base64')}`;
       const entry = await parseFromPhoto(dataUrl, hint);
       return entry;
