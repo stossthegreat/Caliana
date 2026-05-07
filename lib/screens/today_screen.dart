@@ -18,12 +18,12 @@ import '../widgets/calorie_ring.dart';
 import '../widgets/mini_macro_ring.dart';
 import '../widgets/date_strip.dart';
 import '../widgets/caliana_bubble.dart';
-import '../widgets/caliana_character.dart';
 import '../widgets/food_edit_sheet.dart';
 import '../widgets/input_dock.dart';
 import '../widgets/quick_actions_bar.dart';
 import '../widgets/recipes_sheet.dart';
 import 'paywall_screen.dart';
+import 'main_tabs.dart';
 import 'settings_screen.dart';
 
 /// Caliana home — BLUE strip ONLY at top (top bar + date strip).
@@ -367,34 +367,15 @@ class _TodayScreenState extends State<TodayScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // Chat area — Caliana hero portrait centered behind the conversation.
-  // Chat bubbles scroll above her transparent silhouette; she's NOT a button.
+  // ---------------------------------------------------------------------------
+  // Chat area — pure conversation. The big background portrait was
+  // intentionally removed; Caliana's presence is the small avatar on
+  // each bubble + the FAB at the bottom of the dock. Keeping the chat
+  // surface clean lets recipe cards / hero photos breathe.
   // ---------------------------------------------------------------------------
   Widget _buildChatArea(dayLog) {
     return Stack(
       children: [
-        // Hero Caliana — centered, large, sits behind the chat list with a
-        // subtle white veil so messages stay readable on top of her.
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: IgnorePointer(
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: ShaderMask(
-                shaderCallback: (rect) => const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0x00FFFFFF), Color(0xFFFFFFFF)],
-                  stops: [0.0, 0.18],
-                ).createShader(rect),
-                blendMode: BlendMode.dstIn,
-                child: const CalianaCharacter(size: 240, floating: true),
-              ),
-            ),
-          ),
-        ),
         Positioned.fill(
           child: dayLog.messages.isEmpty
               ? const SizedBox.shrink()
@@ -436,15 +417,22 @@ class _TodayScreenState extends State<TodayScreen> {
   void _onQuickAction(String id) {
     switch (id) {
       case 'fix_my_day':
+      case 'save_tonight': // legacy id from prior label
         _onFixMyDay();
+        break;
+      case 'fix_tomorrow':
+      case 'plan_tomorrow':
+        HapticFeedback.lightImpact();
+        MainTabs.goToPlan();
         break;
       case 'log_meal':
         _textFocus.requestFocus();
         break;
       case 'high_protein':
         _suggestRecipes(
-          ask: 'high-protein meals around 400-500 kcal',
-          intro: "Right. Two high-protein options.",
+          ask:
+              'high protein chicken or salmon dinner with at least 35g protein',
+          intro: "High-protein options — 35g+ per serving.",
         );
         break;
       case 'eat_clean':
@@ -466,21 +454,25 @@ class _TodayScreenState extends State<TodayScreen> {
   }
 
   /// Asks the recipe agent for 2-3 ideas, drops them in chat as expandable
-  /// recipe cards, and saves each to the Recipes Sheet so the user can find
-  /// them later. Falls back to a chat reply if the agent returns nothing.
+  /// recipe cards. NEVER falls back to a chat reply — if the recipe agent
+  /// comes up empty we retry once with a simpler query, then a static
+  /// recipe so the user always gets a meal card.
   Future<void> _suggestRecipes({
     required String ask,
     required String intro,
   }) async {
     if (_isThinking) return;
     setState(() => _isThinking = true);
-    final ideas = await CalianaService.instance.suggestMeals(ask);
+    var ideas = await CalianaService.instance.suggestMeals(ask);
     if (!mounted) return;
 
     if (ideas.isEmpty) {
-      setState(() => _isThinking = false);
-      await _talkTo("Suggest $ask.");
-      return;
+      ideas = await CalianaService.instance
+          .suggestMeals('easy healthy dinner recipe');
+      if (!mounted) return;
+    }
+    if (ideas.isEmpty) {
+      ideas = [_fallbackMeal()];
     }
 
     final now = DateTime.now();
@@ -497,34 +489,99 @@ class _TodayScreenState extends State<TodayScreen> {
       ),
     );
 
-    for (final idea in ideas) {
-      await SavedMealsService.instance.save(
-        SavedMeal(
-          id: 'sm_${now.millisecondsSinceEpoch}_${idea.name.hashCode}',
-          savedAt: now,
-          name: idea.name,
-          calories: idea.calories,
-          proteinGrams: idea.protein,
-          carbsGrams: idea.carbs,
-          fatGrams: idea.fat,
-          ingredients: idea.ingredients,
-          steps: idea.steps,
-          recipeLink: idea.link,
-          recipeSource: idea.source,
-        ),
-      );
-    }
+    // No auto-save. The user picks what to keep via Save on each card —
+    // auto-save was filling Recipes with every passing suggestion.
 
     if (mounted) setState(() => _isThinking = false);
     _scrollToBottom();
   }
 
+  /// Hardcoded fallback recipe so "Fix my day" / "Suggest dinner" / etc
+  /// always produce a card even when the recipe pipeline is unreachable.
+  MealIdea _fallbackMeal() {
+    return const MealIdea(
+      name: 'Lemon-pepper chicken & greens',
+      calories: 480,
+      protein: 42,
+      carbs: 28,
+      fat: 18,
+      ingredients: [
+        '1 chicken breast (~180g)',
+        '1 tbsp olive oil',
+        '1 lemon (juice + zest)',
+        '1 tsp cracked black pepper',
+        '1 garlic clove, minced',
+        '150g tenderstem broccoli',
+        '100g baby spinach',
+        'Salt to taste',
+      ],
+      steps: [
+        'Butterfly the chicken breast and rub with olive oil, lemon zest, '
+            'pepper, salt, and garlic.',
+        'Sear in a hot pan 4 minutes a side until golden and cooked through.',
+        'Steam the broccoli 3 minutes; wilt the spinach in the chicken pan.',
+        'Plate the greens, slice the chicken on top, finish with lemon juice.',
+      ],
+      sourceDomain: 'caliana',
+    );
+  }
+
   Future<void> _onFixMyDay() async {
     HapticFeedback.mediumImpact();
-    await _talkTo(
-      "Fix my day. Recalculate dinner to land me on target.",
-      hideUserMessage: true,
+    final profile = UserProfileService.instance.profile;
+    final today = DayLogService.instance.today;
+    final goal = profile.dailyCalorieGoal;
+    final consumed = today.totalCalories;
+    final remaining = goal - consumed;
+
+    final String intro;
+    final String ask;
+    if (remaining < 0) {
+      final over = -remaining;
+      intro = "Over by $over. Sober dinner — pick one.";
+      ask = 'lightest possible dinner under 300 kcal that still satisfies';
+    } else if (remaining < 400) {
+      intro = "Tight: $remaining left. Easy options.";
+      ask = 'small dinner around $remaining kcal that fits my macros';
+    } else {
+      intro = "$remaining left. Proper dinner — pick one.";
+      ask = 'satisfying dinner around $remaining kcal that fits my macros';
+    }
+
+    await _suggestRecipes(ask: ask, intro: intro);
+  }
+
+  Future<void> _onSuggestDinner() async {
+    HapticFeedback.mediumImpact();
+    final profile = UserProfileService.instance.profile;
+    final today = DayLogService.instance.today;
+    final remaining =
+        (profile.dailyCalorieGoal - today.totalCalories).clamp(200, 4000);
+    await _suggestRecipes(
+      ask: 'dinner ideas around $remaining kcal that fit my goals',
+      intro: "$remaining left for dinner. Pick one.",
     );
+  }
+
+  /// Caliana's chat replies often wrap the dish in persona language
+  /// ("Salmon and greens. Sorted."). When the user taps "Get recipe"
+  /// we feed the search a clean dish phrase, not the persona scaffolding.
+  String _stripPersonaForSearch(String text) {
+    var t = text.trim();
+    final firstSentence = t.split(RegExp(r'[.!?]')).first.trim();
+    if (firstSentence.length >= 3) t = firstSentence;
+    t = t.replaceFirst(
+      RegExp(
+        r'^(right|sorted|behave|tidy|alright|okay|ok|so|well|listen|look)[\s,—-]+',
+        caseSensitive: false,
+      ),
+      '',
+    );
+    if (t.contains(':')) {
+      final after = t.split(':').sublist(1).join(':').trim();
+      if (after.length >= 3) t = after;
+    }
+    return t.trim();
   }
 
   Future<void> _talkTo(String text, {bool hideUserMessage = false}) async {
@@ -875,9 +932,12 @@ class _TodayScreenState extends State<TodayScreen> {
   // Chat actions / long-press / nav
   // ---------------------------------------------------------------------------
   Future<void> _onActionChip(String label, ChatMessage source) async {
-    // Route well-known chip labels to local actions so the welcome bubble
-    // (and any future Caliana suggestions) feel native, not chatty.
-    switch (label.toLowerCase()) {
+    // Route well-known chip labels to real actions. Future-fix chips
+    // route to Plan; today-fix chips stay on Today and surface dinner
+    // options. "Get recipe" turns Caliana's last suggestion text into
+    // a real recipe pull.
+    final l = label.toLowerCase().trim();
+    switch (l) {
       case 'snap food':
       case 'snap a meal':
         _onCameraTap();
@@ -886,8 +946,64 @@ class _TodayScreenState extends State<TodayScreen> {
       case 'snap my fridge':
         _onFridgeTap();
         return;
+      // ── Future-fix chips → Plan tab ──────────────────────────
+      case 'fix tomorrow':
+      case 'plan tomorrow':
+      case 'open plan':
+      case 'fix the week':
+      case 'rebuild week':
+      case 'rebuild the week':
+        HapticFeedback.lightImpact();
+        MainTabs.goToPlan();
+        return;
+      // ── Today-fix chips → dinner suggestions on Today ────────
       case 'fix my day':
+      case 'fix the day':
+      case 'save tonight':
+      case 'fix dinner':
+      case 'fix my dinner':
         _onFixMyDay();
+        return;
+      // ── "Get recipe" — feeds Caliana's last suggestion into search ──
+      case 'get recipe':
+      case 'find recipe':
+      case 'show me':
+        HapticFeedback.lightImpact();
+        final ask = _stripPersonaForSearch(source.text);
+        if (ask.trim().isEmpty) {
+          _onSuggestDinner();
+        } else {
+          _suggestRecipes(
+            ask: '$ask recipe',
+            intro: "Right — here's what I found.",
+          );
+        }
+        return;
+      case 'suggest dinner':
+      case 'dinner ideas':
+        _onSuggestDinner();
+        return;
+      case 'high protein':
+      case 'high-protein':
+        _suggestRecipes(
+          ask:
+              'high protein chicken or salmon dinner with at least 35g protein',
+          intro: "High-protein options — 35g+ per serving.",
+        );
+        return;
+      case 'eat clean':
+      case 'clean meal':
+        _suggestRecipes(
+          ask: 'light clean meals for the rest of today',
+          intro: "Light and clean. Pick one.",
+        );
+        return;
+      case 'quick lunch':
+      case '10-minute lunch':
+        _suggestRecipes(
+          ask: '10-minute lunch ideas that fit my macros',
+          intro: "Ten-minute jobs. Fast.",
+        );
         return;
     }
     await _talkTo(label);

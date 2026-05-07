@@ -15,19 +15,19 @@ class QuickAction {
   });
 }
 
-/// Two-row Wrap of preset chips. First chip is "Fix my day" — blue
-/// gradient + pulsing — same SIZE as the others, just visually loud.
-/// Layout chosen so users see every preset at once without scrolling.
+/// Single-row, horizontally-scrollable preset chips. "Fix my day" leads
+/// (blue gradient + pulsing). "Fix tomorrow" sits second so the recovery
+/// flow is one tap from the home screen — pressing it routes to the
+/// Plan tab where the whole next day gets generated minus today's
+/// overage.
 class QuickActionsBar extends StatelessWidget {
   final void Function(String id) onTap;
 
   const QuickActionsBar({super.key, required this.onTap});
 
-  // 'Log meal' was removed — it focused the text field but the input
-  // dock now has a dedicated 'Type' toggle, so the chip was redundant
-  // (and was reported as broken in QA).
   static const actions = <QuickAction>[
     QuickAction('fix_my_day', '⚡', 'Fix my day', primary: true),
+    QuickAction('fix_tomorrow', '📅', 'Fix tomorrow'),
     QuickAction('high_protein', '🍗', 'High protein'),
     QuickAction('eat_clean', '🥗', 'Eat clean'),
     QuickAction('had_junk', '🍔', 'Had junk'),
@@ -36,13 +36,16 @@ class QuickActionsBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 4, 14, 4),
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        alignment: WrapAlignment.start,
-        children: actions.map((a) {
+    return SizedBox(
+      height: 40,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        itemCount: actions.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final a = actions[i];
           if (a.primary) {
             return _PulsingPrimaryChip(
               action: a,
@@ -59,7 +62,7 @@ class QuickActionsBar extends StatelessWidget {
               onTap(a.id);
             },
           );
-        }).toList(),
+        },
       ),
     );
   }
