@@ -1,43 +1,26 @@
 {
   "project_info": {
-    "project_number": "809944092883",
-    "project_id": "gobly-beb76",
-    "storage_bucket": "gobly-beb76.firebasestorage.app"
+    "project_number": "958533945009",
+    "project_id": "caliana-db2fb",
+    "storage_bucket": "caliana-db2fb.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:809944092883:android:83e22bb08251a6ac0cc426",
+        "mobilesdk_app_id": "1:958533945009:android:ed0606f0761436a5654490",
         "android_client_info": {
-          "package_name": "com.gobly.gobly"
+          "package_name": "com.caliana.caliana"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "809944092883-dlmuckmtael6195biuvf68a636u75unf.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyCbOlYe3suBSUolQAIr8HVUBJG0V_84zpE"
+          "current_key": "AIzaSyBeVRiZSFGcP8jRhGvyx181g3m9E2-wCX4"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "809944092883-dlmuckmtael6195biuvf68a636u75unf.apps.googleusercontent.com",
-              "client_type": 3
-            },
-            {
-              "client_id": "809944092883-6i2kp4iov58icv1oogmh09uoj2b178su.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.gobly.app"
-              }
-            }
-          ]
+          "other_platform_oauth_client": []
         }
       }
     }
