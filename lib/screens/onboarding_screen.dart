@@ -47,10 +47,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.dispose();
   }
 
+  // 11 onboarding steps total now (Biometrics split into 2 to keep iPad
+  // compat-mode windows from clipping the Continue button).
+  static const int _totalSteps = 11;
+
   void _next() {
     AnalyticsService.instance.logOnboardingStep(_index, _stepLabel(_index));
     HapticFeedback.mediumImpact();
-    if (_index < 9) {
+    if (_index < _totalSteps - 1) {
       _pc.nextPage(
         duration: const Duration(milliseconds: 320),
         curve: Curves.easeOutCubic,
@@ -71,15 +75,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   String _stepLabel(int i) => switch (i) {
         0 => 'welcome',
-        1 => 'biometrics',
-        2 => 'goal',
-        3 => 'activity',
-        4 => 'diet',
-        5 => 'tone',
-        6 => 'notifications',
-        7 => 'plan_reveal',
-        8 => 'social_proof',
-        9 => 'paywall',
+        1 => 'biometrics_1',
+        2 => 'biometrics_2',
+        3 => 'goal',
+        4 => 'activity',
+        5 => 'diet',
+        6 => 'tone',
+        7 => 'notifications',
+        8 => 'plan_reveal',
+        9 => 'social_proof',
+        10 => 'paywall',
         _ => 'unknown',
       };
 
@@ -117,6 +122,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   _FadeSlideIn(
                     key: ValueKey('bio_${_draft.hashCode}'),
                     child: _Biometrics(
+                      draft: _draft,
+                      onUpdate: (p) => setState(() => _draft = p),
+                      onNext: _next,
+                    ),
+                  ),
+                  _FadeSlideIn(
+                    key: ValueKey('bio2_${_draft.hashCode}'),
+                    child: _BiometricsBody(
                       draft: _draft,
                       onUpdate: (p) => setState(() => _draft = p),
                       onNext: _next,
@@ -227,7 +240,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
-                  value: (_index + 1) / 10,
+                  value: (_index + 1) / _totalSteps,
                   minHeight: 5,
                   backgroundColor: AppColors.surfaceBorder,
                   valueColor: const AlwaysStoppedAnimation(AppColors.primary),
@@ -236,9 +249,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
           ),
           SizedBox(
-            width: 38,
+            width: 42,
             child: Text(
-              '${_index + 1}/10',
+              '${_index + 1}/$_totalSteps',
               textAlign: TextAlign.right,
               style: const TextStyle(
                 fontSize: 12,
@@ -352,6 +365,12 @@ class _WelcomeState extends State<_Welcome> {
 // ============================================================================
 // SCREEN 2 — Biometrics (sex, age, height, weight)
 // ============================================================================
+// ============================================================================
+// SCREEN 2 — Biometrics part 1: Sex + Age
+// (split from a single screen because Apple's iPad Air reviewer reported
+// the Continue button was clipping below the fold in iPhone-compat-mode
+// windows. Two short screens never overflow.)
+// ============================================================================
 class _Biometrics extends StatefulWidget {
   final UserProfile draft;
   final ValueChanged<UserProfile> onUpdate;
@@ -370,6 +389,112 @@ class _Biometrics extends StatefulWidget {
 class _BiometricsState extends State<_Biometrics> {
   late String _sex = widget.draft.sex;
   late int _age = widget.draft.ageYears;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _Title('A bit about you'),
+                  const _Subtitle(
+                      'Caliana needs the basics to calculate your numbers.'),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Sex',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _SegButton(
+                          label: 'Female',
+                          selected: _sex == 'female',
+                          onTap: () => setState(() => _sex = 'female'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _SegButton(
+                          label: 'Male',
+                          selected: _sex == 'male',
+                          onTap: () => setState(() => _sex = 'male'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _SegButton(
+                          label: 'Other',
+                          selected: _sex == 'other',
+                          onTap: () => setState(() => _sex = 'other'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  _SliderRow(
+                    label: 'Age',
+                    value: _age.toDouble(),
+                    min: 14,
+                    max: 90,
+                    divisions: 76,
+                    display: '$_age yrs',
+                    onChanged: (v) => setState(() => _age = v.round()),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
+          ),
+          _PrimaryButton(
+            label: 'Continue',
+            onTap: () {
+              widget.onUpdate(widget.draft.copyWith(
+                sex: _sex,
+                ageYears: _age,
+              ));
+              widget.onNext();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// SCREEN 3 — Biometrics part 2: Height + Current weight
+// ============================================================================
+class _BiometricsBody extends StatefulWidget {
+  final UserProfile draft;
+  final ValueChanged<UserProfile> onUpdate;
+  final VoidCallback onNext;
+
+  const _BiometricsBody({
+    required this.draft,
+    required this.onUpdate,
+    required this.onNext,
+  });
+
+  @override
+  State<_BiometricsBody> createState() => _BiometricsBodyState();
+}
+
+class _BiometricsBodyState extends State<_BiometricsBody> {
   late double _heightCm = widget.draft.heightCm;
   late double _weightKg = widget.draft.weightKg;
 
@@ -380,84 +505,44 @@ class _BiometricsState extends State<_Biometrics> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _Title('A bit about you'),
-          const _Subtitle(
-              'Caliana needs the basics to calculate your numbers.'),
-          const SizedBox(height: 24),
-          const Text(
-            'Sex',
-            style: TextStyle(
-              fontSize: 13,
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.6,
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _Title('A bit more.'),
+                  const _Subtitle('Two more numbers, then we move.'),
+                  const SizedBox(height: 24),
+                  _SliderRow(
+                    label: 'Height',
+                    value: _heightCm,
+                    min: 130,
+                    max: 220,
+                    divisions: 90,
+                    display: '${_heightCm.round()} cm',
+                    onChanged: (v) => setState(() => _heightCm = v),
+                  ),
+                  const SizedBox(height: 16),
+                  _SliderRow(
+                    label: 'Current weight',
+                    value: _weightKg,
+                    min: 35,
+                    max: 200,
+                    divisions: 165,
+                    display: '${_weightKg.toStringAsFixed(1)} kg',
+                    onChanged: (v) => setState(() => _weightKg = v),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _SegButton(
-                  label: 'Female',
-                  selected: _sex == 'female',
-                  onTap: () => setState(() => _sex = 'female'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _SegButton(
-                  label: 'Male',
-                  selected: _sex == 'male',
-                  onTap: () => setState(() => _sex = 'male'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _SegButton(
-                  label: 'Other',
-                  selected: _sex == 'other',
-                  onTap: () => setState(() => _sex = 'other'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          _SliderRow(
-            label: 'Age',
-            value: _age.toDouble(),
-            min: 14,
-            max: 90,
-            divisions: 76,
-            display: '$_age yrs',
-            onChanged: (v) => setState(() => _age = v.round()),
-          ),
-          const SizedBox(height: 16),
-          _SliderRow(
-            label: 'Height',
-            value: _heightCm,
-            min: 130,
-            max: 220,
-            divisions: 90,
-            display: '${_heightCm.round()} cm',
-            onChanged: (v) => setState(() => _heightCm = v),
-          ),
-          const SizedBox(height: 16),
-          _SliderRow(
-            label: 'Current weight',
-            value: _weightKg,
-            min: 35,
-            max: 200,
-            divisions: 165,
-            display: '${_weightKg.toStringAsFixed(1)} kg',
-            onChanged: (v) => setState(() => _weightKg = v),
-          ),
-          const Spacer(),
           _PrimaryButton(
             label: 'Continue',
             onTap: () {
               widget.onUpdate(widget.draft.copyWith(
-                sex: _sex,
-                ageYears: _age,
                 heightCm: _heightCm,
                 weightKg: _weightKg,
               ));
