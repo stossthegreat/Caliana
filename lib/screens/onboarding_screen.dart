@@ -7,6 +7,7 @@ import '../theme/app_theme.dart';
 import '../models/user_profile.dart';
 import '../services/user_profile_service.dart';
 import '../services/usage_service.dart';
+import '../services/notification_service.dart';
 import '../services/analytics_service.dart';
 import '../widgets/character_card.dart';
 import 'paywall_screen.dart';
@@ -97,6 +98,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       dailyKcal: completed.dailyCalorieGoal,
     );
     await OnboardingScreen.markSeen();
+    // The user just chose their notification windows + tone — restage
+    // the daily Caliana pings so they fire at the right times in the
+    // right voice. Fire-and-forget; permission denial is silent.
+    unawaited(NotificationService.instance.rescheduleDaily());
     if (!mounted) return;
     widget.onComplete();
   }
