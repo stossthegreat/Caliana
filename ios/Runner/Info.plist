@@ -46,7 +46,15 @@
 	<string>Caliana uses your photo library to read meal photos and estimate calories.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Caliana uses your camera to snap meals and your fridge to estimate calories and plan around what you have.</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>Caliana sends one cheeky check-in a day at the times you pick — never spam, easy to turn off in Settings.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>https</string>
+		<string>http</string>
+		<string>mailto</string>
+	</array>
 </dict>
 </plist>
