@@ -102,6 +102,11 @@ class NotificationService {
             iOS: const DarwinNotificationDetails(),
           ),
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          // Required parameter on flutter_local_notifications 17.x. The
+          // wall-clock-time interpretation matches the user's device
+          // timezone, so a 1pm slot fires at 1pm wherever they are.
+          uiLocalNotificationDateInterpretation:
+              UILocalNotificationDateInterpretation.absoluteTime,
           matchDateTimeComponents: DateTimeComponents.time,
         );
       }
