@@ -13,6 +13,8 @@ import '../services/day_log_service.dart';
 import '../services/caliana_service.dart';
 import '../services/saved_meals_service.dart';
 import '../services/usage_service.dart';
+import '../services/paywall_trigger_service.dart';
+import '../services/review_prompt_service.dart';
 import '../services/transcribe_service.dart';
 import '../models/meal_idea.dart';
 import '../models/saved_meal.dart';
@@ -24,6 +26,7 @@ import '../widgets/input_dock.dart';
 import '../widgets/quick_actions_bar.dart';
 import '../widgets/recipes_sheet.dart';
 import '../widgets/food_edit_sheet.dart';
+import '../widgets/review_prompt_sheet.dart';
 import 'paywall_screen.dart';
 import 'main_tabs.dart';
 import 'settings_screen.dart';
@@ -829,6 +832,36 @@ class _TodayScreenState extends State<TodayScreen> {
     _scrollToBottom();
   }
 
+  /// Called after every successful food log (text, voice, photo). Two
+  /// jobs: (1) bump the review-prompt event counter and pop the
+  /// 5-star sheet once the user has clearly felt value; (2) ask the
+  /// PaywallTriggerService whether this is a moment to surface the
+  /// paywall, and pop it if so.
+  Future<void> _afterFoodLogged() async {
+    if (!mounted) return;
+    // Review prompt — fires once after the threshold of meaningful logs.
+    final shouldReview =
+        await ReviewPromptService.instance.recordEventAndShouldPrompt();
+    if (shouldReview && mounted) {
+      // Tiny breath so the food log card lands first.
+      await Future.delayed(const Duration(milliseconds: 600));
+      if (!mounted) return;
+      await ReviewPromptSheet.show(context);
+      return; // Don't double-pop the paywall right after the review.
+    }
+    // Opportunistic paywall (skipped for Pro / inside cooldown).
+    if (PaywallTriggerService.instance.shouldShowOpportunistic('photo')) {
+      await Future.delayed(const Duration(milliseconds: 600));
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const PaywallScreen(triggerText: 'after photo log'),
+        ),
+      );
+      await PaywallTriggerService.instance.markShown();
+    }
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -888,6 +921,7 @@ class _TodayScreenState extends State<TodayScreen> {
             foodEntry: entry,
           ),
         );
+        unawaited(_afterFoodLogged());
       } else {
         _showFoodLogError();
       }
@@ -1336,6 +1370,7 @@ class _TodayScreenState extends State<TodayScreen> {
         foodEntry: rendered,
       ),
     );
+    unawaited(_afterFoodLogged());
     if (entry == null) _showFoodLogError();
     final reply = await CalianaService.instance.chat(
       entry == null
@@ -1423,6 +1458,7 @@ class _TodayScreenState extends State<TodayScreen> {
               foodEntry: entry,
             ),
           );
+          unawaited(_afterFoodLogged());
         } else {
           _showFoodLogError();
         }
@@ -1606,6 +1642,7 @@ class _TodayScreenState extends State<TodayScreen> {
         foodEntry: entry,
       ),
     );
+    unawaited(_afterFoodLogged());
     if (!mounted) return;
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
       backgroundColor: const Color(0xFF0F172A),

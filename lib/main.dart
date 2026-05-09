@@ -17,6 +17,8 @@ import 'services/consent_service.dart';
 import 'services/review_prompt_service.dart';
 import 'services/recovery_autopilot.dart';
 import 'services/revenuecat_service.dart';
+import 'services/paywall_trigger_service.dart';
+import 'services/notification_service.dart';
 import 'services/analytics_service.dart';
 
 void main() async {
@@ -61,6 +63,7 @@ void main() async {
       PlanService.instance.load(),
       ConsentService.instance.load(),
       ReviewPromptService.instance.load(),
+      PaywallTriggerService.instance.load(),
       OnboardingScreen.hasBeenSeen().then((v) => onboardingSeen = v),
     ]);
     debugPrint('✅ Caliana services loaded');
@@ -73,6 +76,15 @@ void main() async {
     // Configure RevenueCat in the background — fire-and-forget so a
     // missing/bad API key never blocks the app from booting.
     unawaited(RevenueCatService.instance.bootstrap());
+
+    // Daily retention pings. init() requests OS permission once on
+    // first run; rescheduleDaily() reads the user's notificationHours
+    // from their profile and (re)stages the daily pings. Both are
+    // fire-and-forget so a permission denial never blocks boot.
+    unawaited(() async {
+      await NotificationService.instance.init();
+      await NotificationService.instance.rescheduleDaily();
+    }());
 
     if (firebaseReady) {
       try {
