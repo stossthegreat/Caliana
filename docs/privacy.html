@@ -36,7 +36,7 @@
 
     <h3>b. Information collected automatically</h3>
     <ul>
-      <li><strong>Device &amp; usage data.</strong> Through Firebase Analytics we collect anonymous usage events (screens viewed, features used, crash reports), device model, operating system version, and approximate region. We do not collect precise location.</li>
+      <li><strong>Anonymous usage events (Google Firebase Analytics).</strong> Caliana does not require you to sign in. To understand how the App is being used &mdash; which features are working, which are confusing, where people drop off &mdash; we use Google Firebase Analytics. On first launch, Firebase generates an anonymous installation identifier (an opaque GUID known as the <em>app_instance_id</em>). All events we record are attached to that identifier. <strong>We do not collect your name, email, phone number, contact list, or any other directly-identifying information.</strong> We do not link this identifier to your real-world identity, because we do not have one to link it to. The events we record include things like "app opened", "onboarding step viewed", "food logged", "paywall viewed", "subscription started" &mdash; plus your tone preference (Polite, Cheeky, or Savage) and goal type (lose, maintain, gain) so we can understand how each cohort uses the App. None of those values is sensitive. Firebase also collects standard device fields automatically (device model, operating system version, app version, country at city-level resolution &mdash; never precise GPS).</li>
       <li><strong>Technical logs.</strong> Our backend records request metadata (timestamps, endpoint, response status) for debugging and abuse prevention. These logs are retained for up to 30 days.</li>
     </ul>
 
@@ -45,6 +45,15 @@
       <li>We do not collect precise GPS location.</li>
       <li>We do not collect contacts, calendar, or browsing history.</li>
       <li>We do not sell your data to advertisers.</li>
+      <li>We do not link the anonymous Firebase analytics identifier to any real-world identity, because the App does not require sign-in.</li>
+    </ul>
+
+    <h3>d. Turning analytics off</h3>
+    <p>You can disable the anonymous analytics described above at any time:</p>
+    <ul>
+      <li><strong>iOS:</strong> The first time you open Caliana, iOS asks whether the App may track activity across other companies' apps and websites. Choosing "Ask App Not to Track" stops Firebase Analytics from working in this App. You can change your answer later under <em>Settings &rarr; Privacy &amp; Security &rarr; Tracking &rarr; Caliana</em>.</li>
+      <li><strong>Android:</strong> Open Google Settings &rarr; Ads and turn on <em>Opt out of Ads Personalisation</em>, or reset the advertising identifier. Both have the effect of breaking the link between your Firebase events and any other Google product.</li>
+      <li><strong>Either platform:</strong> Reinstalling the App generates a fresh, unrelated <em>app_instance_id</em>, so your historical analytics record cannot be tied to the new install.</li>
     </ul>
 
     <h2>3. How we use your data</h2>
